@@ -21,52 +21,51 @@ class Controller(tk.Frame):
         self.camera_index = 2
         self.colourmap = None
 
-        self.init_camera()
-        self.show_frame() #initialise camera
         
-        tk.Frame.__init__(self, parent)
+        frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.pack()
         self.parent = parent
         # tk.Label(self, text="Control Panel").pack()
         self.var = tk.IntVar()
         
-        # self.scale1 = tk.Scale(self, label='exposure',
+        labelframe = tk.LabelFrame(parent, text="This is a LabelFrame")
+        labelframe.pack(fill="both", expand="yes") #.grid(row=0, column=0) 
+        
+        # self.scale1 = tk.Scale(labelframe, label='exposure',
             # from_=1, to=10,
             # length=300, tickinterval=30,
             # showvalue='yes', 
-            # orient='horizontal')
+            # orient='horizontal',
+            # command = self.change_exp)
         # self.scale1.pack()
-        # self.button1 = tk.Button(self, text = "Select", command = self.change_exp)
-        # self.button1.pack()
         
-        # self.scale2 = tk.Scale(self, label='gain',
-            # from_=1, to=10,
-            # length=300, tickinterval=30,
-            # showvalue='yes', 
-            # orient='horizontal')
-        # self.scale2.pack()
-        # self.button2 = tk.Button(self, text = "Select", command = self.change_gain)
-        # self.button2.pack()
+        self.scale2 = tk.Scale(labelframe, label='gain',
+            from_=1, to=10,
+            length=300, tickinterval=30,
+            showvalue='yes', 
+            orient='horizontal',
+            command = self.change_gain)
+        self.scale2.pack()
 
-        self.variable = tk.StringVar(parent)
-        self.variable.set("one")
-        self.dropdown1 = tk.OptionMenu(parent, self.variable, "0", "1", "2")
+        self.variable = tk.StringVar(labelframe)
+        self.variable.set("0")
+        self.dropdown1 = tk.OptionMenu(labelframe, self.variable, "0", "1", "2", command = self.change_cam)
         self.dropdown1.pack()
-        self.button3 = tk.Button(self, text = "Select", command = self.change_cam)
-        self.button3.pack()
         
-        self.variable2 = tk.StringVar(parent)
+        self.variable2 = tk.StringVar(labelframe)
         self.variable2.set("normal")
-        self.dropdown2 = tk.OptionMenu(parent, self.variable2, "normal", "jet", command = self.change_colourmap)
+        self.dropdown2 = tk.OptionMenu(labelframe, self.variable2, "normal", "jet", command = self.change_colourmap)
         self.dropdown2.pack()
 
         self.parent.title('Laser Beam Profiler')
         
-        self.plot = tk.Button(self, text = "Plot", command = self.refresh_plot)
+        self.plot = tk.Button(labelframe, text = "Plot", command = self.refresh_plot)
         self.plot.pack()
-        self.exit = tk.Button(self, text = "Exit", command = self.close_window, compound = tk.BOTTOM)
+        self.exit = tk.Button(labelframe, text = "Exit", command = self.close_window, compound = tk.BOTTOM)
         self.exit.pack()
 
+        self.init_camera()
+        self.show_frame() #initialise camera
         self.make_fig()
         
     def make_fig(self):
@@ -87,15 +86,15 @@ class Controller(tk.Frame):
         self.ax.clear()
         print 'updated plot'
     
-    def change_exp(self):
+    def change_exp(self, option):
         exp = float(self.scale1.get())/1000000
         print 'changing exp to', exp
-        cap.set(15, exp)
+        self.cap.set(15, exp)
         
-    def change_gain(self):
+    def change_gain(self, option):
         gain = self.scale2.get()
         print 'changing gain to', gain*1000
-        self.camera.set(14, gain)
+        self.cap.set(14, gain)
 
     def init_camera(self):
         width, height = 400, 300
@@ -103,10 +102,10 @@ class Controller(tk.Frame):
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                   
-    def change_cam(self):
+    def change_cam(self, option):
         if self.camera_index != int(self.variable.get()):
             self.camera_index = int(self.variable.get())
-            print 'camera index change, now to update view...', self.camera_index, type(self.camera_index)
+            print 'camera index change, now to update view...', self.camera_index
             self.cap.release()
             self.init_camera()
             self.show_frame()

@@ -10,9 +10,9 @@ with open('LICENSE') as f:
     license = f.read()
 
 setup(
-    name='sample',
+    name='Beam Profiler',
     version='0.0.1',
-    description='Sample package for Python-Guide.org',
+    description='Beam profiler for summer internship at Birmingham Physics Department',
     long_description=readme,
     author='Samuel Bancroft',
     author_email='S.Bancroft@bham.ac.uk',
