@@ -21,6 +21,7 @@ lmain.pack()
 
 class Controller(tk.Frame):
     def __init__(self, parent=root, camera_index=0):
+         '''Initialises basic variables and GUI elements.'''
         self.start_time = time.time()
         self.angle = 0
         self.camera_index = 2
@@ -69,6 +70,7 @@ class Controller(tk.Frame):
         self.show_frame() #initialise camera
 
     def make_fig(self):
+         '''Creates a matplotlib figure to be placed in the GUI.'''
         self.fig = Figure(figsize=(4,4), dpi=100) 
         self.ax = self.fig.add_subplot(111) 
         self.ax.set_ylim(0,255)
@@ -81,22 +83,26 @@ class Controller(tk.Frame):
         canvas._tkcanvas.pack()
         
     def refresh_plot(self):
+        '''Updates the matplotlib figure with new data.'''
         self.ax.plot(self.img[0])
         self.ax.set_ylim(0,255)
         self.fig.canvas.draw() 
         self.ax.clear()
     
     def change_exp(self, option):
+        '''Changes the exposure time of the camera.'''
         exp = float(self.scale1.get())/1000000
         print 'changing exp to', exp
         self.cap.set(15, exp)
         
     def change_gain(self, option):
+        '''Changes the gain of the camera.'''
         gain = self.scale2.get()
         print 'changing gain to', gain*1000
         self.cap.set(14, gain)
 
     def init_camera(self):
+         '''Initialises the camera with a set resolution.'''
         width, height = 640, 360
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap:
@@ -105,6 +111,7 @@ class Controller(tk.Frame):
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
                   
     def change_cam(self, option):
+        '''Switches between camera_indexes and therefore different connected cameras.'''
         if self.camera_index != int(self.variable.get()):
             self.camera_index = int(self.variable.get())
             print 'camera index change, now to update view...', self.camera_index
@@ -113,6 +120,7 @@ class Controller(tk.Frame):
             self.show_frame()
     
     def change_colourmap(self, option):
+        '''Changes the colourmap used in the camera feed.'''
         print 'changed colourmap', option
         if option == 'jet':
             self.colourmap = cv2.COLORMAP_JET
@@ -120,6 +128,7 @@ class Controller(tk.Frame):
             self.colourmap = None
     
     def show_frame(self):
+         '''Shows camera view with relevant labels and annotations included.'''
         _, frame = self.cap.read()
         # frame = cv2.flip(frame, 1)
         if self.colourmap is None:
@@ -152,18 +161,19 @@ class Controller(tk.Frame):
             self.start_time = time.time()
         
     def set_angle(self, option):
+        '''Sets the rotation angle.'''
         self.angle = float(option)
         
     def rotate_image(self, image):
-        # return np.rot90(image, self.angle)
-        print image, image.shape
+        '''Rotates the given array by the rotation angle, returning as a PIL image.'''
         image_centre = tuple(np.array(image.shape)/2)
         image_centre = (image_centre[0], image_centre[1])
         rot_mat = cv2.getRotationMatrix2D(image_centre,self.angle,1.0)
         result = cv2.warpAffine(image, rot_mat, (image.shape[0], image.shape[1]), flags=cv2.INTER_LINEAR)
         return Image.fromarray(result)
   
-    def close_window(self): 
+    def close_window(self):
+         '''Closes the GUI.'''
         self.parent.quit()
         self.parent.destroy()
         
