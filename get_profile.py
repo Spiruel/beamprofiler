@@ -21,11 +21,12 @@ lmain.pack()
 
 class Controller(tk.Frame):
     def __init__(self, parent=root, camera_index=0):
-         '''Initialises basic variables and GUI elements.'''
+        '''Initialises basic variables and GUI elements.'''
         self.start_time = time.time()
         self.angle = 0
-        self.camera_index = 2
+        self.camera_index = 0
         self.colourmap = None
+        self.centroid = None
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
@@ -35,6 +36,14 @@ class Controller(tk.Frame):
 
         labelframe = tk.Frame(self)
         labelframe.pack(side=tk.LEFT) #.grid(row=0, column=0) 
+        
+        # self.scale1 = tk.Scale(labelframe, label='exposure',
+            # from_=1, to=10,
+            # length=300, tickinterval=30,
+            # showvalue='yes', 
+            # orient='horizontal',
+            # command = self.change_exp)
+        # self.scale1.pack()
         
         self.scale2 = tk.Scale(labelframe, label='gain',
             from_=1, to=10,
@@ -70,10 +79,10 @@ class Controller(tk.Frame):
         self.show_frame() #initialise camera
 
     def make_fig(self):
-         '''Creates a matplotlib figure to be placed in the GUI.'''
-        self.fig = Figure(figsize=(4,4), dpi=100) 
-        self.ax = self.fig.add_subplot(111) 
-        self.ax.set_ylim(0,255)
+        '''Creates a matplotlib figure to be placed in the GUI.'''
+        # self.fig = Figure(figsize=(4,4), dpi=100) 
+        self.fig, self.ax = plt.subplots(2)
+        # self.ax.set_ylim(0,255)
         canvas = FigureCanvasTkAgg(self.fig, self) 
         canvas.show() 
         canvas.get_tk_widget().pack() 
@@ -84,14 +93,24 @@ class Controller(tk.Frame):
         
     def refresh_plot(self):
         '''Updates the matplotlib figure with new data.'''
-        self.ax.plot(self.img[0])
-        self.ax.set_ylim(0,255)
+        # test = analysis.fix_saturation(self.img)
+        
+        grayscale = np.array(Image.fromarray(self.img).convert('L'))
+        if self.centroid != None:
+            self.ax[0].plot(grayscale[self.centroid[1]])
+            self.ax[1].plot(grayscale[self.centroid[1]])
+        
+        # params = analysis.fit_gaussian(grayscale, with_bounds=False)
+        # analysis.plot_gaussian(grayscale, params)
+        
+        # self.ax.set_ylim(0,255)
         self.fig.canvas.draw() 
-        self.ax.clear()
+        self.ax[0].clear()
+        self.ax[1].clear()
     
     def change_exp(self, option):
         '''Changes the exposure time of the camera.'''
-        exp = float(self.scale1.get())/1000000
+        exp = float(self.scale1.get())/10000000000000000000000000000000
         print 'changing exp to', exp
         self.cap.set(15, exp)
         
@@ -102,13 +121,13 @@ class Controller(tk.Frame):
         self.cap.set(14, gain)
 
     def init_camera(self):
-         '''Initialises the camera with a set resolution.'''
-        width, height = 640, 360
+        '''Initialises the camera with a set resolution.'''
+        self.width, self.height = 640, 360
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap:
             raise Exception("Camera not accessible")
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
                   
     def change_cam(self, option):
         '''Switches between camera_indexes and therefore different connected cameras.'''
@@ -128,7 +147,7 @@ class Controller(tk.Frame):
             self.colourmap = None
     
     def show_frame(self):
-         '''Shows camera view with relevant labels and annotations included.'''
+        '''Shows camera view with relevant labels and annotations included.'''
         _, frame = self.cap.read()
         # frame = cv2.flip(frame, 1)
         if self.colourmap is None:
@@ -139,11 +158,23 @@ class Controller(tk.Frame):
         cv2.putText(cv2image,"Laser Beam profiler", (35,40), cv2.FONT_HERSHEY_SIMPLEX, .5, (255,255,255))
         dim = np.shape(cv2image)
         
-        centroid = analysis.find_centroid(frame)
-        if centroid != (None, None):
-            cv2.circle(cv2image,centroid,10,255,thickness=10)
-            cv2.putText(cv2image,'Centroid position: ' + str(centroid), (10,310), cv2.FONT_HERSHEY_SIMPLEX, .4, (255,255,255))
+        # convert to greyscale
+        tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+        
+        centroid = analysis.find_centroid(tracking)
+        if centroid[0] < self.width or centroid[1] < self.height:
+            if centroid != (None, None):
+                cv2.circle(cv2image,centroid,10,255,thickness=10)
+                cv2.putText(cv2image,'Centroid position: ' + str(centroid), (10,310), cv2.FONT_HERSHEY_SIMPLEX, .4, (255,255,255))
+                self.centroid = centroid
+        else:
+            self.centroid = None
 
+        # ellipse = analysis.find_ellipse(tracking)
+        # if ellipse != None:
+            # print 'ellipse success'
+            # cv2.ellipse(cv2image,ellipse,(0,255,0),20)
+            
         if self.angle != 0:
             img = self.rotate_image(cv2image)
         else:
@@ -173,7 +204,7 @@ class Controller(tk.Frame):
         return Image.fromarray(result)
   
     def close_window(self):
-         '''Closes the GUI.'''
+        '''Closes the GUI.'''
         self.parent.quit()
         self.parent.destroy()
         
