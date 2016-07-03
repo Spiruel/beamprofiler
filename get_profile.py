@@ -4,6 +4,7 @@ import cv2
 from PIL import Image, ImageTk
 import numpy as np
 import time
+import sys
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -255,9 +256,7 @@ class Controller(tk.Frame):
         return Image.fromarray(result)
   
     def close_window(self):
-        '''Closes the GUI.'''
-        self.parent.quit()
-        self.parent.destroy()
+        on_closing()
         
     def donothing(self):
        filewin = tk.Toplevel(self.parent)
@@ -268,8 +267,17 @@ class Controller(tk.Frame):
        input.insert(tk.END, "Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Dr Jon Goldwin, Birmingham University")
        
     def save_screenshot(self):
-        cv2.imwrite('output.png', self.img) 
+        cv2.imwrite('output.png', self.img)
         
 c = Controller(root)
 c.pack()
+
+def on_closing():
+        '''Closes the GUI.'''
+        root.quit()
+        root.destroy()
+        c.cap.release()
+        cv2.destroyAllWindows()
+        
+root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
