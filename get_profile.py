@@ -4,7 +4,10 @@ import cv2
 from PIL import Image, ImageTk
 import numpy as np
 import time
-import sys
+import math
+
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.ndimage.interpolation import zoom
 
 import matplotlib
 matplotlib.use('TkAgg')
@@ -71,7 +74,7 @@ class Controller(tk.Frame):
         menubar.add_cascade(label="Image", underline=0, menu=imageMenu)        
         
         helpmenu = tk.Menu(menubar, tearoff=0)
-        helpmenu.add_command(label="About", command=lambda: self.info_window("Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University"))
+        helpmenu.add_command(label="About", command=lambda: self.info_window("Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
         menubar.add_cascade(label="Help", menu=helpmenu)
 
         self.parent.config(menu=menubar)
@@ -108,7 +111,7 @@ class Controller(tk.Frame):
         
         self.variable3 = tk.StringVar(labelframe)
         self.variable3.set("cross profile")
-        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit", "beam stability", "centroid time", command = self.change_fig)
+        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit","2d surface", "beam stability", "centroid time", command = self.change_fig)
         self.dropdown3.pack()
         
         b = tk.Button(labelframe, text="Sound", command=lambda: output.main())
@@ -127,6 +130,8 @@ class Controller(tk.Frame):
             self.fig, self.ax = plt.subplots(1,2, gridspec_kw = {'width_ratios':[16, 9]})
         elif self.fig_type == '2d gaussian fit':
             self.fig = Figure(figsize=(4,4), dpi=100)
+        elif self.fig_type == '2d surface':
+            self.fig = Figure(figsize=(4,4), projection='3d', dpi=100)
         elif self.fig_type == 'beam stability':
             self.fig = Figure(figsize=(4,4), dpi=100)
         elif self.fig_type == 'centroid_time':
@@ -147,7 +152,7 @@ class Controller(tk.Frame):
         
         if self.fig_type == 'cross profile':
             if self.centroid != None:
-                print 'beam width:', 4*np.std(grayscale[self.centroid[1],:]),4*np.std(grayscale[:,self.centroid[0]])
+                # print 'beam width:', 4*np.std(grayscale[self.centroid[1],:]),4*np.std(grayscale[:,self.centroid[0]])
                 self.ax[0].plot(range(self.width), grayscale[self.centroid[1],:],'k-')
                 self.ax[1].plot(grayscale[:,self.centroid[0]], range(self.height),'k-')
                 
@@ -163,6 +168,14 @@ class Controller(tk.Frame):
                 img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
                 params = analysis.fit_gaussian(img, with_bounds=False)
                 analysis.plot_gaussian(plt.gca(), img, params)
+        elif self.fig_type == '2d surface':
+            ax = self.fig.add_subplot(1,1,1,projection='3d')
+            z = np.asarray(grayscale)[100:250,250:400]
+            z = zoom(z, 0.25)
+            mydata = z[::1,::1]
+            x,y = np.mgrid[:mydata.shape[0],:mydata.shape[1]]
+            ax.plot_surface(x,y,mydata,cmap=plt.cm.jet,rstride=1,cstride=1,linewidth=0.,antialiased=False)
+            ax.set_zlim3d(0,255)
         elif self.fig_type == 'beam stability':
             plt.plot(self.centroid_hist_x, self.centroid_hist_y)
             plt.xlim(0, self.width)
@@ -175,6 +188,7 @@ class Controller(tk.Frame):
             else:
                 index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
                 plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
+            plt.ylim(0,self.width)
             plt.legend(frameon=False)
             
         # self.ax[0].hold(True)
@@ -243,21 +257,31 @@ class Controller(tk.Frame):
             cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
         else:
             cv2image = cv2.applyColorMap(frame, self.colourmap)
+            
+        if self.angle != 0:
+            cv2image = self.rotate_image(cv2image)
         
         cv2.putText(cv2image,"Laser Beam profiler", (10,40), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
         dim = np.shape(cv2image)
         
         # convert to greyscale
         tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+       
+        i,j = analysis.get_max(tracking, np.std(tracking), alpha=10, size=10) #make sure not too intensive
+
+        if len(i) != 0 and len(j) != 0:
+            peak_cross = (sum(i) / len(i), sum(j) / len(j)) #chooses the average point for the time being!!
+        else:
+            peak_cross = [0, 0]
+            
+        cv2.putText(cv2image,'Max Value: ' + str(np.max(tracking)) + ' at (' + str(int(peak_cross[0]))+ ', ' + str(int(peak_cross[1])) + ')', (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+        cv2.putText(cv2image,'Min Value: ' + str(np.min(tracking)), (10,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
         
-        # too intensive at the moment...
-        # cv2.putText(cv2image,'Peak Value: ' + str(np.max(tracking)) + str(analysis.get_max(tracking,3)), (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
-        
-        cv2.putText(cv2image,'Peak Value: ' + str(np.max(tracking)), (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+        cv2.circle(cv2image,(int(peak_cross[0]), int(peak_cross[1])),10,255,thickness=10)
         
         centroid = analysis.find_centroid(tracking)
-        if centroid[0] < self.width or centroid[1] < self.height:
-            if centroid != (None, None):
+        if centroid != (np.nan, np.nan):
+            if centroid[0] < self.width or centroid[1] < self.height:
                 # cv2.circle(cv2image,centroid,10,255,thickness=10)
                 cv2.putText(cv2image,'Centroid position: ' + str(centroid), (10,310), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
                 self.centroid = centroid
@@ -266,30 +290,27 @@ class Controller(tk.Frame):
                 cv2.line(cv2image, (centroid[0], 0), (centroid[0], self.height), 255, thickness=1)
                 
             else:
+                print 'Problem! Centroid out of image region.', centroid[0], centroid[1]
                 self.centroid = None
-            self.centroid_hist_x, self.centroid_hist_y = np.append(self.centroid_hist_x, centroid[0]), np.append(self.centroid_hist_y, centroid[1])
-            self.running_time = np.append(self.running_time, time.time())
         else:
             self.centroid = None
 
+        self.centroid_hist_x, self.centroid_hist_y = np.append(self.centroid_hist_x, centroid[0]), np.append(self.centroid_hist_y, centroid[1])
+        self.running_time = np.append(self.running_time, time.time())
+        
         # ellipse = analysis.find_ellipse(tracking)
         # if ellipse != None:
             # print 'ellipse success'
             # cv2.ellipse(cv2image,ellipse,(0,255,0),20)
-            
-        if self.angle != 0:
-            img = self.rotate_image(cv2image)
-        else:
-            img = Image.fromarray(cv2image)
-            
-        imgtk = ImageTk.PhotoImage(image=img)
+ 
+        imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
             
         lmain.imgtk = imgtk
         lmain.configure(image=imgtk)
         lmain.after(10, self.show_frame)
         
         self.img = frame
-        if time.time() - self.plot_time > 1:
+        if time.time() - self.plot_time > 0.1:
             self.refresh_plot()
             self.plot_time = time.time()
         
@@ -298,41 +319,83 @@ class Controller(tk.Frame):
         self.angle = float(option)
         
     def rotate_image(self, image):
-        '''Rotates the given array by the rotation angle, returning as a PIL image.'''
-        image_centre = tuple(np.array(image.shape)/2)
-        image_centre = (image_centre[0], image_centre[1])
-        rot_mat = cv2.getRotationMatrix2D(image_centre,self.angle,1.0)
-        result = cv2.warpAffine(image, rot_mat, (image.shape[0], image.shape[1]), flags=cv2.INTER_LINEAR)
-        return Image.fromarray(result)
+        '''Rotates the given array by the rotation angle, returning as an array.'''
+        image_height, image_width = image.shape[0:2]
+        
+        image_rotated = output.rotate_image(image, self.angle)
+        image_rotated_cropped = output.crop_around_center(
+            image_rotated,
+            *output.largest_rotated_rect(
+                image_width,
+                image_height,
+                math.radians(self.angle)
+            )
+        )
+        return image_rotated_cropped
   
     def close_window(self):
         on_closing()
         
-    def info_window(self, info):
+    def info_window(self, info, modal=False):
         self.counter += 1
         t = tk.Toplevel(self)
         t.wm_title("Window #%s" % self.counter)
         l = tk.Label(t, text=info)
         # l = tk.Label(t, text="This is window #%s" % self.counter)
         l.pack(side="top", fill="both", expand=True, padx=100, pady=100)
+        if modal:
+            l.focus_set()                                                        
+            l.grab_set()  
        
     def save_screenshot(self):
         cv2.imwrite('output.png', self.img)
         
     def save_video(self, wait):
         start = time.time()
-        fourcc = cv2.VideoWriter_fourcc('X', 'V', 'I', 'D')
-        while wait < time.time() - start:
-            video_writer = cv2.VideoWriter("output.avi", fourcc, 20, (680, 480))
-        video_writer.release()
+        # zeros array
+        fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+        writer = None
+        (h, w) = (None, None)
+        zeros = None
+        # loop over frames from the video stream
+        while wait > time.time() - start:
+            # grab the frame from the video stream and resize it to have a
+            # maximum width of 300 pixels
+            _, frame = self.cap.read()
+            # check if the writer is None
+            if writer is None:
+                # store the image dimensions, initialzie the video writer,
+                # and construct the zeros array
+                (h, w) = (self.height, self.width)
+                writer = cv2.VideoWriter("output.avi", fourcc, 30,
+                    (w * 2, h * 2), True)
+                zeros = np.zeros((h, w), dtype="uint8")
         
+                # break the image into its RGB components, then construct the
+                # RGB representation of each frame individually
+                B, G, R = cv2.split(frame)
+                R = cv2.merge([zeros, zeros, R])
+                G = cv2.merge([zeros, G, zeros])
+                B = cv2.merge([B, zeros, zeros])
+             
+                # construct the final output frame, storing the original frame
+                # at the top-left, the red channel in the top-right, the green
+                # channel in the bottom-right, and the blue channel in the
+                # bottom-left
+                output = np.zeros((h * 2, w * 2, 3), dtype="uint8")
+                output[0:h, 0:w] = frame
+                output[0:h, w:w * 2] = R
+                output[h:h * 2, w:w * 2] = G
+                output[h:h * 2, 0:w] = B
+             
+                # write the output frame to file
+                writer.write(output)
+            
     def save_csv(self):
+        '''Saves .csv file of recorded data in columns.'''
         output = np.column_stack((self.running_time.flatten(),self.centroid_hist_x.flatten(),self.centroid_hist_y.flatten()))
-        np.savetxt('output.dat',output,delimiter=',')
+        np.savetxt('output.csv',output,delimiter=',',header='Laser Beam Profiler Data Export. \n running time, centroid_hist_x, centroid_hist_y')
         
-c = Controller(root)
-c.pack()
-
 def on_closing():
         '''Closes the GUI.'''
         root.quit()
@@ -340,5 +403,7 @@ def on_closing():
         c.cap.release()
         cv2.destroyAllWindows()
         
+c = Controller(root)
+c.pack()
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()

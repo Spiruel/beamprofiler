@@ -6,3 +6,4 @@ test.py
 build/
 dist/
 sample.egg-info/
+testing/
