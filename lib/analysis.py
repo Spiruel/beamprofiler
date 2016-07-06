@@ -56,17 +56,20 @@ def find_centroid(tracking):
 
     return centroid
     
-def find_ellipse(tra):
+def find_ellipses(tracking):
+        ellipses = np.array([])
         ret,thresh = cv2.threshold(tracking,127,255,0)
         _,contours,hierarchy = cv2.findContours(thresh, 1, 2)
-        cnt = contours[0]
-        try:
-            ellipse = cv2.fitEllipse(cnt)
-        except:
-            ellipse = None
         
-        return ellipse
-    
+        if len(contours) != 0:
+            for cont in contours:
+                if len(cont) < 5:
+                    break
+                elps = cv2.fitEllipse(cont)
+                # ellipses = np.append(ellipses, elps)
+                return elps  #only returns one ellipse. Should it return more?
+        return None
+                        
 # 2D Gaussian model
 def func(xy, x0, y0, sigma, H):
 

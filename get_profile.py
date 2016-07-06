@@ -29,12 +29,16 @@ class Controller(tk.Frame):
         self.running_time = np.array([])
         self.plot_time = time.time()
         self.angle = 0
+        self.roi = 1
         self.camera_index = 0
         self.centroid = None
+        self.peak_cross = None
         self.colourmap = None
         self.fig_type = 'cross profile'
         self.counter = 0
         self.centroid_hist_x, self.centroid_hist_y = np.array([]), np.array([])
+        self.peak_hist_x, self.peak_hist_y = np.array([]), np.array([])
+        self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = 0, 0, 0, 0, 0
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
@@ -93,13 +97,21 @@ class Controller(tk.Frame):
             command = self.change_exp)
         self.scale1.pack()
         
-        self.scale2 = tk.Scale(labelframe, label='gain',
-            from_=-10000, to=10000,
+        self.scale2 = tk.Scale(labelframe, label='ROI',
+            from_=1, to=10,
             length=300, tickinterval=1,
             showvalue='yes', 
             orient='horizontal',
-            command = self.change_gain)
+            command = self.set_roi)
         self.scale2.pack()
+        
+        # self.scale2 = tk.Scale(labelframe, label='gain',
+            # from_=-10000, to=10000,
+            # length=300, tickinterval=1,
+            # showvalue='yes', 
+            # orient='horizontal',
+            # command = self.change_gain)
+        # self.scale2.pack()
         
         self.scale3 = tk.Scale(labelframe, label='rotate',
             from_=0, to=360,
@@ -111,7 +123,7 @@ class Controller(tk.Frame):
         
         self.variable3 = tk.StringVar(labelframe)
         self.variable3.set("cross profile")
-        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit","2d surface", "beam stability", "centroid time", command = self.change_fig)
+        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit","2d surface", "beam stability", "centroid/peak cross history", "ellipse fit", command = self.change_fig)
         self.dropdown3.pack()
         
         b = tk.Button(labelframe, text="Sound", command=lambda: output.main())
@@ -134,7 +146,9 @@ class Controller(tk.Frame):
             self.fig = Figure(figsize=(4,4), projection='3d', dpi=100)
         elif self.fig_type == 'beam stability':
             self.fig = Figure(figsize=(4,4), dpi=100)
-        elif self.fig_type == 'centroid_time':
+        elif self.fig_type == 'centroid/peak cross history':
+            self.fig = Figure(figsize=(4,4), dpi=100)
+        elif self.fig_type == 'ellipse fit':
             self.fig = Figure(figsize=(4,4), dpi=100)
 
         # self.ax.set_ylim(0,255)
@@ -153,8 +167,8 @@ class Controller(tk.Frame):
         if self.fig_type == 'cross profile':
             if self.centroid != None:
                 # print 'beam width:', 4*np.std(grayscale[self.centroid[1],:]),4*np.std(grayscale[:,self.centroid[0]])
-                self.ax[0].plot(range(self.width), grayscale[self.centroid[1],:],'k-')
-                self.ax[1].plot(grayscale[:,self.centroid[0]], range(self.height),'k-')
+                self.ax[0].plot(range(self.width), grayscale[self.peak_cross[1],:],'k-')
+                self.ax[1].plot(grayscale[:,self.peak_cross[0]], range(self.height),'k-')
                 
                 self.ax[0].set_xlim(0,self.width)
                 self.ax[0].set_ylim(0,255)
@@ -162,11 +176,12 @@ class Controller(tk.Frame):
                 self.ax[1].set_xlim(0,255)
                 self.ax[1].set_ylim(self.height,0)              
         elif self.fig_type == '2d gaussian fit':
-            if self.centroid != None:
+            if self.peak_cross != None:
                 size = 50
-                x, y = self.centroid
+                x, y = self.peak_cross
                 img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
                 params = analysis.fit_gaussian(img, with_bounds=False)
+                # plt.imshow(self.img[y-size/2:y+size/2, x-size/2:x+size/2]) #show image for debug purposes.
                 analysis.plot_gaussian(plt.gca(), img, params)
         elif self.fig_type == '2d surface':
             ax = self.fig.add_subplot(1,1,1,projection='3d')
@@ -180,9 +195,11 @@ class Controller(tk.Frame):
             plt.plot(self.centroid_hist_x, self.centroid_hist_y)
             plt.xlim(0, self.width)
             plt.ylim(self.height, 0)
-        elif self.fig_type == 'centroid time':
-            plt.plot(self.running_time-self.running_time[0], self.centroid_hist_x, 'y-', label='centroid x coordinate')
+        elif self.fig_type == 'centroid/peak cross history':
+            plt.plot(self.running_time-self.running_time[0], self.centroid_hist_x, 'b-', label='centroid x coordinate')
             plt.plot(self.running_time-self.running_time[0], self.centroid_hist_y, 'r-', label='centroid y coordinate')
+            plt.plot(self.running_time-self.running_time[0], self.peak_hist_x, 'y-', label='peak x coordinate')
+            plt.plot(self.running_time-self.running_time[0], self.peak_hist_y, 'g-', label='peak y coordinate')
             if self.running_time[-1] - self.running_time[0] <= 60:
                 plt.xlim(0, 60)
             else:
@@ -190,6 +207,26 @@ class Controller(tk.Frame):
                 plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
             plt.ylim(0,self.width)
             plt.legend(frameon=False)
+        elif self.fig_type == 'ellipse fit':
+            pts = output.get_ellipse_coords(a=self.MA, b=self.ma, x=self.ellipse_x, y=self.ellipse_y, angle=self.ellipse_angle)
+            plt.plot(pts[:,0], pts[:,1])
+            
+            MA_x, MA_y = self.MA*math.cos(self.ellipse_angle*(np.pi/180)), self.MA*math.sin(self.ellipse_angle*(np.pi/180))
+            ma_x, ma_y = self.ma*math.sin(self.ellipse_angle*(np.pi/180)), self.ma*math.cos(self.ellipse_angle*(np.pi/180))
+            MA_xtop, MA_ytop = int(self.ellipse_x + MA_x), int(self.ellipse_y + MA_y)
+            MA_xbot, MA_ybot = int(self.ellipse_x - MA_x), int(self.ellipse_y - MA_y)
+            
+            ma_xtop, ma_ytop = int(self.ellipse_x + ma_x), int(self.ellipse_y + ma_y)
+            ma_xbot, ma_ybot = int(self.ellipse_x - ma_x), int(self.ellipse_y - ma_y)
+            plt.plot(MA_xtop, MA_ytop, 'ro')
+            plt.plot(MA_xbot, MA_ybot, 'bo')
+            plt.plot(ma_xtop, ma_ytop, 'rx')
+            plt.plot(ma_xbot, ma_ybot, 'bx')
+
+            # print np.dot([ma_xtop-ma_xbot, ma_ytop-ma_ybot], [MA_xtop-MA_xbot, MA_ytop-MA_ybot]) #axes not always perfectly perpendicular
+            
+            plt.xlim(0, self.width)
+            plt.ylim(self.height, 0)
             
         # self.ax[0].hold(True)
         # self.ax[1].hold(True)
@@ -258,6 +295,8 @@ class Controller(tk.Frame):
         else:
             cv2image = cv2.applyColorMap(frame, self.colourmap)
             
+        if self.roi != 1:
+            cv2image = cv2.resize(cv2image, (self.width/2,self.height/2), fx=self.roi, fy=self.roi) 
         if self.angle != 0:
             cv2image = self.rotate_image(cv2image)
         
@@ -266,21 +305,25 @@ class Controller(tk.Frame):
         
         # convert to greyscale
         tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-       
-        i,j = analysis.get_max(tracking, np.std(tracking), alpha=10, size=10) #make sure not too intensive
-
-        if len(i) != 0 and len(j) != 0:
-            peak_cross = (sum(i) / len(i), sum(j) / len(j)) #chooses the average point for the time being!!
-        else:
-            peak_cross = [0, 0]
-            
-        cv2.putText(cv2image,'Max Value: ' + str(np.max(tracking)) + ' at (' + str(int(peak_cross[0]))+ ', ' + str(int(peak_cross[1])) + ')', (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
-        cv2.putText(cv2image,'Min Value: ' + str(np.min(tracking)), (10,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
-        
-        cv2.circle(cv2image,(int(peak_cross[0]), int(peak_cross[1])),10,255,thickness=10)
-        
+             
         centroid = analysis.find_centroid(tracking)
         if centroid != (np.nan, np.nan):
+        
+            #if centroid then peak cross can be calculated quickly
+            i,j = analysis.get_max(tracking, np.std(tracking), alpha=10, size=10) #make sure not too intensive
+            if len(i) != 0 and len(j) != 0:
+                peak_cross = (sum(i) / len(i), sum(j) / len(j)) #chooses the average point for the time being!!
+                self.peak_cross = peak_cross
+            else:
+                peak_cross = (np.nan, np.nan)
+                self.peak_cross = None
+                
+            cv2.putText(cv2image,'Min Value: ' + str(np.min(tracking)), (10,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+            
+            if peak_cross != (np.nan, np.nan):
+                cv2.putText(cv2image,'Max Value: ' + str(np.max(tracking)) + ' at (' + str(int(peak_cross[0]))+ ', ' + str(int(peak_cross[1])) + ')', (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+                # cv2.circle(cv2image,(int(peak_cross[0]), int(peak_cross[1])),10,255,thickness=3)
+            
             if centroid[0] < self.width or centroid[1] < self.height:
                 # cv2.circle(cv2image,centroid,10,255,thickness=10)
                 cv2.putText(cv2image,'Centroid position: ' + str(centroid), (10,310), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
@@ -294,15 +337,22 @@ class Controller(tk.Frame):
                 self.centroid = None
         else:
             self.centroid = None
+            peak_cross = (np.nan, np.nan)
+            self.peak_cross = None
 
         self.centroid_hist_x, self.centroid_hist_y = np.append(self.centroid_hist_x, centroid[0]), np.append(self.centroid_hist_y, centroid[1])
+        self.peak_hist_x, self.peak_hist_y = np.append(self.peak_hist_x, peak_cross[0]), np.append(self.peak_hist_y, peak_cross[1])
         self.running_time = np.append(self.running_time, time.time())
         
-        # ellipse = analysis.find_ellipse(tracking)
-        # if ellipse != None:
-            # print 'ellipse success'
-            # cv2.ellipse(cv2image,ellipse,(0,255,0),20)
- 
+        ellipses = analysis.find_ellipses(tracking)
+        if ellipses != None:
+            (x,y),(ma,MA),angle = ellipses
+            self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = MA, ma, x, y, angle
+            cv2.putText(cv2image,'Ellipse fit active', (470,55), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
+            cv2.putText(cv2image,'Eccentricity: ' + str(round(np.sqrt(1-(self.ma/self.MA)**2),2)), (470,70), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
+            cv2.putText(cv2image,'Rotation: ' + str(round(self.ellipse_angle,2)), (470,85), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
+            cv2.ellipse(cv2image,ellipses,(0,255,0),1)
+
         imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
             
         lmain.imgtk = imgtk
@@ -317,6 +367,11 @@ class Controller(tk.Frame):
     def set_angle(self, option):
         '''Sets the rotation angle.'''
         self.angle = float(option)
+        
+    def set_roi(self, option):
+        '''Sets the region of interest size'''
+        print 'changed roi to', option
+        self.roi = float(option)
         
     def rotate_image(self, image):
         '''Rotates the given array by the rotation angle, returning as an array.'''

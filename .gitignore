@@ -5,5 +5,5 @@ test.py
 
 build/
 dist/
-sample.egg-info/
+Beam_Profiler.egg-info/
 testing/
