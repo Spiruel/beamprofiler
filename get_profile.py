@@ -28,8 +28,11 @@ lmain.pack()
 
 class InfoFrame(tk.Frame):
     def __init__(self, parent):
-        root.minsize(200,300)
-        self.tree = ttk.Treeview(root,columns=("Unit","Value"))
+
+	self.window = tk.Toplevel(parent)
+
+        self.window.minsize(200,300)
+        self.tree = ttk.Treeview(self.window,columns=("Unit","Value"))
         self.tree.heading("#0", text='Parameter', anchor=tk.W)
         self.tree.column("#0", stretch=0)
         self.tree.heading("#1", text='Unit', anchor=tk.W)
@@ -53,7 +56,7 @@ class InfoFrame(tk.Frame):
         
         self.tree.pack(expand=True,fill=tk.BOTH)
         
-        button_refresh = tk.Button(root, text="refresh", command=self.refresh_frame)
+        button_refresh = tk.Button(self.window, text="refresh", command=self.refresh_frame)
         button_refresh.pack()
         
         self.refresh_frame()
@@ -68,6 +71,9 @@ class InfoFrame(tk.Frame):
         for i in range(len(self.ellipse_rows)):
             self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i],np.random.random()))
         self.tree.see("23")
+
+    def close(self):
+        self.window.destroy()
         
 class Controller(tk.Frame):
     def __init__(self, parent=root):
@@ -89,6 +95,8 @@ class Controller(tk.Frame):
         self.centroid_hist_x, self.centroid_hist_y = np.array([]), np.array([])
         self.peak_hist_x, self.peak_hist_y = np.array([]), np.array([])
         self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = 0, 0, 0, 0, 0
+
+	self.info_frame = None
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
@@ -532,8 +540,6 @@ class Controller(tk.Frame):
         '''Saves .csv file of recorded data in columns.'''
         output = np.column_stack((self.running_time.flatten(),self.centroid_hist_x.flatten(),self.centroid_hist_y.flatten()))
         np.savetxt('output.csv',output,delimiter=',',header='Laser Beam Profiler Data Export. \n running time, centroid_hist_x, centroid_hist_y')
-        
-    #vvvvvvvvvvvv########THIS SHOULD BE IN A CLASS SOMEHOW########vvvvvvvvv#
     
     def calc_results(self):
         try:
@@ -542,47 +548,9 @@ class Controller(tk.Frame):
         except Exception:
             pass
             
-        self.top2 = t = tk.Toplevel(self)
-        t.minsize(200,300)
-        self.tree = ttk.Treeview(t,columns=("Unit","Value"))
-        self.tree.heading("#0", text='Parameter', anchor=tk.W)
-        self.tree.column("#0", stretch=0)
-        self.tree.heading("#1", text='Unit', anchor=tk.W)
-        self.tree.column("#1", stretch=0)
-        self.tree.heading("#2", text='Value', anchor=tk.W)
-        self.tree.column("#2", stretch=0)
-
-        self.raw_rows = ["Beam Width (4 sigma)", "Beam Diameter (4 sigma)", "Effective Beam Diameter", "Peak Position", "Centroid Position", "Total Power"]
-        self.raw_units = ["um"]*len(self.raw_rows)
-        self.ellipse_rows = ["Ellipse axes", "Ellipticity", "Eccentricity", "Orientation"]
-        self.ellipse_units = ["um", "%", "%", "deg"]
-        
-        self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
-        for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i],np.random.random()))
-        self.tree.see("14")
-        self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
-        for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i],np.random.random()))
-        self.tree.see("23")
-        
-        self.tree.pack(expand=True,fill=tk.BOTH)
-        
-        button_refresh = tk.Button(t, text="refresh", command=self.refresh_frame)
-        button_refresh.pack()
-        
-    def refresh_frame(self):
-        self.tree.delete(*self.tree.get_children())
-        self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
-        for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i],np.random.random()))
-        self.tree.see("14")
-        self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
-        for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i],np.random.random()))
-        self.tree.see("23")
-        
-    #^^^^^^^^########THIS SHOULD BE IN A CLASS SOMEHOW########^^^^^^^#
+	if self.info_frame != None:
+		self.info_frame.close()
+	self.info_frame = InfoFrame(self)
         
 def on_closing():
         '''Closes the GUI.'''
