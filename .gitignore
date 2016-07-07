@@ -3,7 +3,4 @@
 
 test.py
 
-build/
-dist/
-Beam_Profiler.egg-info/
 testing/

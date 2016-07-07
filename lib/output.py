@@ -38,11 +38,11 @@ def rotate_image(image, angle):
     # Get the image size
     # No that's not an error - NumPy stores image matricies backwards
     image_size = (image.shape[1], image.shape[0])
-    image_center = tuple(np.array(image_size) / 2)
+    image_centre = tuple(np.array(image_size) / 2)
 
     # Convert the OpenCV 3x2 rotation matrix to 3x3
     rot_mat = np.vstack(
-        [cv2.getRotationMatrix2D(image_center, angle, 1.0), [0, 0, 1]]
+        [cv2.getRotationMatrix2D(image_centre, angle, 1.0), [0, 0, 1]]
     )
 
     rot_mat_notranslate = np.matrix(rot_mat[0:2, 0:2])
@@ -131,15 +131,14 @@ def largest_rotated_rect(w, h, angle):
         bb_h - 2 * y
     )
 
-
-def crop_around_center(image, width, height):
+def crop_around_centre(image, width, height):
     """
     Given a NumPy / OpenCV 2 image, crops it to the given width and height,
-    around it's centre point
+    around its centre point
     """
 
     image_size = (image.shape[1], image.shape[0])
-    image_center = (int(image_size[0] * 0.5), int(image_size[1] * 0.5))
+    image_centre = (int(image_size[0] * 0.5), int(image_size[1] * 0.5))
 
     if(width > image_size[0]):
         width = image_size[0]
@@ -147,36 +146,17 @@ def crop_around_center(image, width, height):
     if(height > image_size[1]):
         height = image_size[1]
 
-    x1 = int(image_center[0] - width * 0.5)
-    x2 = int(image_center[0] + width * 0.5)
-    y1 = int(image_center[1] - height * 0.5)
-    y2 = int(image_center[1] + height * 0.5)
+    x1 = int(image_centre[0] - width * 0.5)
+    x2 = int(image_centre[0] + width * 0.5)
+    y1 = int(image_centre[1] - height * 0.5)
+    y2 = int(image_centre[1] + height * 0.5)
 
     return image[y1:y2, x1:x2]
-    
-def get_ellipse_coords(a=0.0, b=0.0, x=0.0, y=0.0, angle=0.0, k=2):
-    """ Draws an ellipse using (360*k + 1) discrete points; based on pseudo code
-    given at http://en.wikipedia.org/wiki/Ellipse
-    k = 1 means 361 points (degree by degree)
-    a = major axis distance,
-    b = minor axis distance,
-    x = offset along the x-axis
-    y = offset along the y-axis
-    angle = clockwise rotation [in degrees] of the ellipse;
-        * angle=0  : the ellipse is aligned with the positive x-axis
-        * angle=30 : rotated 30 degrees clockwise from positive x-axis
-    """
-    pts = np.zeros((360*k+1, 2))
-
-    beta = -angle * np.pi/180.0
-    sin_beta = np.sin(beta)
-    cos_beta = np.cos(beta)
-    alpha = np.radians(np.r_[0.:360.:1j*(360*k+1)])
- 
-    sin_alpha = np.sin(alpha)
-    cos_alpha = np.cos(alpha)
-    
-    pts[:, 0] = x + (a * cos_alpha * cos_beta - b * sin_alpha * sin_beta)
-    pts[:, 1] = y + (a * cos_alpha * sin_beta + b * sin_alpha * cos_beta)
-
-    return pts
+       
+def scale(A, B, k):     
+    '''fill A with B scaled by k'''
+    Y = A.shape[0]
+    X = A.shape[1]
+    for y in range(0, k):
+        for x in range(0, k):
+            A[y:Y:k, x:X:k] = B

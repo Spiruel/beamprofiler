@@ -6,9 +6,6 @@ import scipy.optimize as opt
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.patches import Circle
-from scipy import ndimage
-
-import copy
 
 def find_centroid(tracking):
     '''Takes greyscale cv2 image and finds one centroid position.'''
@@ -49,27 +46,24 @@ def find_centroid(tracking):
             cx,cy = int(M['m10']/M['m00']), int(M['m01']/M['m00'])
             break
     else:
-        cx = np.nan
-        cy = np.nan
+        cx = None
+        cy = None
         
     centroid = (cx, cy)
 
     return centroid
     
-def find_ellipses(tracking):
-        ellipses = np.array([])
+def find_ellipse(tra):
         ret,thresh = cv2.threshold(tracking,127,255,0)
         _,contours,hierarchy = cv2.findContours(thresh, 1, 2)
+        cnt = contours[0]
+        try:
+            ellipse = cv2.fitEllipse(cnt)
+        except:
+            ellipse = None
         
-        if len(contours) != 0:
-            for cont in contours:
-                if len(cont) < 5:
-                    break
-                elps = cv2.fitEllipse(cont)
-                # ellipses = np.append(ellipses, elps)
-                return elps  #only returns one ellipse. Should it return more?
-        return None
-                        
+        return ellipse
+    
 # 2D Gaussian model
 def func(xy, x0, y0, sigma, H):
 
@@ -126,48 +120,30 @@ def plot_gaussian(ax, image, params):
             edgecolor="red", linewidth=1, alpha=0.8)
     ax.add_patch(circle)
     
-def get_max(image,sigma,alpha=20,size=10):
-    i_out = []
-    j_out = []
-    image_temp = copy.deepcopy(image)
+def get_max(image,sigma,alpha=3,size=10):
+    # preallocate a lot of peak storage
+    k_arr = np.zeros((10000,2))
+    image_temp = image.copy()
+    peak_ct=0
     while True:
         k = np.argmax(image_temp)
         j,i = np.unravel_index(k, image_temp.shape)
         if(image_temp[j,i] >= alpha*sigma):
-            i_out.append(i)
-            j_out.append(j)
+            k_arr[peak_ct]=[j,i]
+            # this is the part that masks already-found peaks.
             x = np.arange(i-size, i+size)
             y = np.arange(j-size, j+size)
             xv,yv = np.meshgrid(x,y)
+            # the clip here handles edge cases where the peak is near the 
+            #    image edge
             image_temp[yv.clip(0,image_temp.shape[0]-1),
-                                   xv.clip(0,image_temp.shape[1]-1) ] = 0
+                               xv.clip(0,image_temp.shape[1]-1) ] = 0
+            peak_ct+=1
         else:
             break
-    return i_out,j_out
-    
-def get_ellipse_coords(a=0.0, b=0.0, x=0.0, y=0.0, angle=0.0, k=2):
-    """ Draws an ellipse using (360*k + 1) discrete points; based on pseudo code
-    given at http://en.wikipedia.org/wiki/Ellipse
-    k = 1 means 361 points (degree by degree)
-    a = major axis distance,
-    b = minor axis distance,
-    x = offset along the x-axis
-    y = offset along the y-axis
-    angle = clockwise rotation [in degrees] of the ellipse;
-        * angle=0  : the ellipse is aligned with the positive x-axis
-        * angle=30 : rotated 30 degrees clockwise from positive x-axis
-    """
-    pts = np.zeros((360*k+1, 2))
-
-    beta = -angle * np.pi/180.0
-    sin_beta = np.sin(beta)
-    cos_beta = np.cos(beta)
-    alpha = np.radians(np.r_[0.:360.:1j*(360*k+1)])
- 
-    sin_alpha = np.sin(alpha)
-    cos_alpha = np.cos(alpha)
-    
-    pts[:, 0] = x + (a * cos_alpha * cos_beta - b * sin_alpha * sin_beta)
-    pts[:, 1] = y + (a * cos_alpha * sin_beta + b * sin_alpha * cos_beta)
-
-    return pts
+    # trim the output for only what we've actually found
+    if len(k_arr[:peak_ct]) > 0:
+        firstmaxvalue = ' at position (' + str(k_arr[:peak_ct][:,1][0]) + ', ' + str(k_arr[:peak_ct][:,0][0]) + ')'
+    else:
+        firstmaxvalue = ''
+    return firstmaxvalue #returns one value at the moment, should be good enough for now
