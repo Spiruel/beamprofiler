@@ -1,5 +1,6 @@
 import Tkinter as tk
 import ttk
+import tkSimpleDialog
 
 import cv2
 from PIL import Image, ImageTk
@@ -26,12 +27,67 @@ root = tk.Tk()
 lmain = tk.Label(root)
 lmain.pack()
 
+class Config(tkSimpleDialog.Dialog):
+    def body(self, master):
+        tk.Label(master, text="Plot refresh rate /s:").grid(row=0)
+        tk.Label(master, text="Pixel size (um):").grid(row=1)
+
+        self.e1 = tk.Entry(master)
+        self.e2 = tk.Entry(master)
+        
+        self.e1.delete(0, tk.END)
+        self.e1.insert(0, str(c.plot_tick))
+        self.e2.delete(0, tk.END)
+        self.e2.insert(0, str(c.pixel_scale))
+
+        self.e1.grid(row=0, column=1)
+        self.e2.grid(row=1, column=1)
+        
+        self.cb = tk.Checkbutton(master, text="Hardcopy")
+        self.cb.grid(row=2, columnspan=2, sticky=tk.W)
+
+        self.rb = tk.Button(master, text="Reset to default", command=self.reset_values)
+        self.rb.grid(row=3, columnspan=2, sticky=tk.W)
+        
+        return self.e1 # initial focus
+        
+    def validate(self):
+        try:
+            plot_tick = self.e1.get()
+            if plot_tick == 0: 
+                raise ValueError
+            pixel_scale = self.e2.get()
+            if plot_tick == '':
+                plot_tick = None
+            else:
+                plot_tick = float(plot_tick)
+            if pixel_scale == '':
+                pixel_scale = None
+            else:
+                pixel_scale = float(pixel_scale)
+            self.result = plot_tick, pixel_scale
+            return 1
+        except ValueError:
+            tkMessageBox.showwarning(
+                "Bad input",
+                "Illegal values, please try again"
+            )
+            return 0
+        
+    def reset_values(self):
+        self.e1.delete(0, tk.END)
+        self.e1.insert(0, '0.1')
+        self.e2.delete(0, tk.END)
+        self.e2.insert(0, '1')
+        
+    def close(self):
+        self.destroy()
+        
 class InfoFrame(tk.Frame):
     def __init__(self, parent):
-
-	self.window = tk.Toplevel(parent)
-
+        self.window = tk.Toplevel(parent)
         self.window.minsize(200,300)
+        
         self.tree = ttk.Treeview(self.window,columns=("Unit","Value"))
         self.tree.heading("#0", text='Parameter', anchor=tk.W)
         self.tree.column("#0", stretch=0)
@@ -42,34 +98,49 @@ class InfoFrame(tk.Frame):
 
         self.raw_rows = ["Beam Width (4 sigma)", "Beam Diameter (4 sigma)", "Effective Beam Diameter", "Peak Position", "Centroid Position", "Total Power"]
         self.raw_units = ["um"]*len(self.raw_rows)
+        self.raw_values = [np.random.random(), np.random.random(), np.random.random(), parent.peak_cross, parent.centroid, np.random.random()]
         self.ellipse_rows = ["Ellipse axes", "Ellipticity", "Eccentricity", "Orientation"]
         self.ellipse_units = ["um", "%", "%", "deg"]
+        self.ellipse_values = ['(' + str(parent.MA) + ', ' + str(parent.ma) + ')', str(parent.ellipticity), str(parent.eccentricity), str(parent.ellipse_angle)]
         
+        self.raw_values = [str(w).replace('None', '-') for w in self.raw_values]
+        self.raw_values = [str(w).replace('(nan, nan)', '-') for w in self.raw_values]
+        self.ellipse_values = [w.replace('None', '-') for w in self.ellipse_values]
+        self.ellipse_values = [w.replace('(nan, nan)', '-') for w in self.ellipse_values]
+                    
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i],np.random.random()))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i],np.random.random()))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i]))
         self.tree.see("23")
         
         self.tree.pack(expand=True,fill=tk.BOTH)
         
-        button_refresh = tk.Button(self.window, text="refresh", command=self.refresh_frame)
+        button_refresh = tk.Button(self.window, text="refresh", command=lambda: self.refresh_frame(parent))
         button_refresh.pack()
         
-        self.refresh_frame()
+        self.refresh_frame(parent)
     
-    def refresh_frame(self):
+    def refresh_frame(self, parent):
+        self.raw_values = [str(np.random.random()), str(np.random.random()), str(np.random.random()), str(parent.peak_cross), str(parent.centroid), str(np.random.random())]
+        self.ellipse_values = ['(' + str(parent.MA) + ', ' + str(parent.ma) + ')', str(parent.ellipticity), str(parent.eccentricity), str(parent.ellipse_angle)]
+        
+        self.raw_values = [w.replace('None', '-') for w in self.raw_values]
+        self.raw_values = [w.replace('(nan, nan)', '-') for w in self.raw_values]
+        self.ellipse_values = [w.replace('None', '-') for w in self.ellipse_values]
+        self.ellipse_values = [w.replace('(nan, nan)', '-') for w in self.ellipse_values]
+        
         self.tree.delete(*self.tree.get_children())
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i],np.random.random()))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i],np.random.random()))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i]))
         self.tree.see("23")
 
     def close(self):
@@ -90,13 +161,17 @@ class Controller(tk.Frame):
         self.colourmap = None
         self.fig_type = 'cross profile'
         self.counter = 0
-        self.top2 = None
         self.running_time = np.array([]) #arrays for information logged throughout the running period
         self.centroid_hist_x, self.centroid_hist_y = np.array([]), np.array([])
         self.peak_hist_x, self.peak_hist_y = np.array([]), np.array([])
-        self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = 0, 0, 0, 0, 0
-
-	self.info_frame = None
+        self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = np.nan, np.nan, np.nan, np.nan, None
+        self.ellipticity, self.eccentricity = None, None
+        self.tick_counter = 0
+        self.plot_tick = 0.1 #refresh rate of plots
+        self.pixel_scale = 1 #default pixel scale of webcam
+        
+        self.info_frame = None
+        self.config_frame = None
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
@@ -118,6 +193,7 @@ class Controller(tk.Frame):
         submenu.add_command(label="0", command= lambda: self.change_cam(0))
         submenu.add_command(label="1", command= lambda: self.change_cam(1))
         submenu.add_command(label="2", command= lambda: self.change_cam(2))
+        controlMenu.add_command(label="Edit Config", command=self.change_config)
         controlMenu.add_cascade(label='Change Camera', menu=submenu, underline=0)
         controlMenu.add_separator()
         controlMenu.add_command(label="Clear Windows", command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message"))
@@ -146,6 +222,15 @@ class Controller(tk.Frame):
         labelframe = tk.Frame(self) #left hand frame for various sliders and tweakables for direct control
         labelframe.pack(side=tk.LEFT) #.grid(row=0, column=0) 
         
+        self.variable4 = tk.IntVar()
+        self.pb = tk.Checkbutton(labelframe, text="Profiler Active (<space>)", variable=self.variable4, command=self.profiler_active)
+        self.pb.pack(fill=tk.BOTH)
+        
+        self.variable3 = tk.StringVar(labelframe)
+        self.variable3.set("cross profile")
+        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit","2d surface", "beam stability", "centroid/peak cross history", "ellipse fit", command = self.change_fig)
+        self.dropdown3.pack()
+        
         self.scale1 = tk.Scale(labelframe, label='exposure',
             from_=-100000, to=-100,
             length=300, tickinterval=10000,
@@ -156,7 +241,7 @@ class Controller(tk.Frame):
         
         self.scale2 = tk.Scale(labelframe, label='ROI',
             from_=1, to=50,
-            length=300, tickinterval=1,
+            length=300, tickinterval=5,
             showvalue='yes', 
             orient='horizontal',
             command = self.set_roi)
@@ -177,16 +262,7 @@ class Controller(tk.Frame):
             orient='horizontal',
             command = self.set_angle)
         self.scale3.pack()
-        
-        self.variable3 = tk.StringVar(labelframe)
-        self.variable3.set("cross profile")
-        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit","2d surface", "beam stability", "centroid/peak cross history", "ellipse fit", command = self.change_fig)
-        self.dropdown3.pack()
-        
-        self.variable4 = tk.IntVar()
-        rb = tk.Checkbutton(labelframe, text="Profiler Active", variable=self.variable4, command=self.profiler_active)
-        rb.pack(fill=tk.BOTH)
-        
+               
         b = tk.Button(labelframe, text="Sound", command=lambda: output.main())
         b.pack(fill=tk.BOTH)
 
@@ -284,8 +360,6 @@ class Controller(tk.Frame):
             plt.plot(MA_xbot, MA_ybot, 'bo')
             plt.plot(ma_xtop, ma_ybot, 'rx')
             plt.plot(ma_xbot, ma_ytop, 'bx')
-
-            # print np.dot([ma_xtop-ma_xbot, ma_ytop-ma_ybot], [MA_xtop-MA_xbot, MA_ytop-MA_ybot]) #axes not always perfectly perpendicular
             
             plt.xlim(0, self.height)
             plt.ylim(self.width, 0)
@@ -355,9 +429,10 @@ class Controller(tk.Frame):
         
         if self.roi != 1: #apply region of interest scaling
             size = int(round(self.height/self.roi)), int(round(self.width/self.roi))
-            frame = frame[self.width/2-size[1]:self.width/2+size[1], self.height/2-size[0]:self.height/2+size[0]]
-            dim1 = frame.shape
-            frame = cv2.resize(frame,None,fx=self.roi/2, fy=self.roi/2, interpolation = cv2.INTER_CUBIC)
+            analysis_frame = frame[self.width/2-size[1]:self.width/2+size[1], self.height/2-size[0]:self.height/2+size[0]]
+            frame = cv2.resize(analysis_frame,None,fx=self.roi/2, fy=self.roi/2, interpolation = cv2.INTER_CUBIC)
+        else:
+            analysis_frame = frame
             
         if self.colourmap is None: #apply colourmap change
             cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
@@ -370,9 +445,8 @@ class Controller(tk.Frame):
         dim = np.shape(cv2image)
         
         if self.active:
-            cv2.putText(cv2image,"Laser Beam profiler: ACTIVE", (10,40), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
             # convert to greyscale
-            tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
+            tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY) #this should be analysis frame soon
                  
             centroid = analysis.find_centroid(tracking)
             if centroid != (np.nan, np.nan):
@@ -385,25 +459,20 @@ class Controller(tk.Frame):
                 else:
                     peak_cross = (np.nan, np.nan)
                     self.peak_cross = None
-                    
-                size = 50
-                if self.peak_cross is not None: #temp until ROI is implemented
-                    x, y = self.peak_cross
-                else:
-                    x, y = 0,0
-                cropped = tracking[y-size/2:y+size/2, x-size/2:x+size/2]
-                cv2.putText(cv2image,'Average Power: ' + str(round(np.mean(cropped),2)), (10,255), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0)) #NEEDS WAY MORE WORK
-                cv2.putText(cv2image,'Total Power: ' + str(round(np.sum(cropped),2)), (10,270), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0)) #masking, thresholding, correct units required
+                 
+                #less intensive to calculate on the cropped frame.
+                # cv2.putText(cv2image,'Average Power: ' + str(round(np.mean(analysis_frame),2)), (10,255), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0)) #NEEDS WAY MORE WORK
+                # cv2.putText(cv2image,'Total Power: ' + str(round(np.sum(analysis_frame),2)), (10,270), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0)) #masking, thresholding, correct units required
                 
-                cv2.putText(cv2image,'Min Value: ' + str(np.min(tracking)), (10,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+                # cv2.putText(cv2image,'Min Value: ' + str(np.min(analysis_frame)), (10,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
                 
-                if peak_cross != (np.nan, np.nan):
-                    cv2.putText(cv2image,'Max Value: ' + str(np.max(tracking)) + ' at (' + str(int(peak_cross[0]))+ ', ' + str(int(peak_cross[1])) + ')', (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+                # if peak_cross != (np.nan, np.nan):
+                    # cv2.putText(cv2image,'Max Value: ' + str(np.max(analysis_frame)) + ' at (' + str(int(peak_cross[0]))+ ', ' + str(int(peak_cross[1])) + ')', (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
                     # cv2.circle(cv2image,(int(peak_cross[0]), int(peak_cross[1])),10,255,thickness=3)
                 
                 if centroid[0] < self.height or centroid[1] < self.width: #ensure centroid lies within correct regions
                     # cv2.circle(cv2image,centroid,10,255,thickness=10)
-                    cv2.putText(cv2image,'Centroid position: ' + str(centroid), (10,310), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
+                    # cv2.putText(cv2image,'Centroid position: ' + str(centroid), (10,310), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
                     self.centroid = centroid
                     
                     cv2.line(cv2image, (0, centroid[1]), (self.height, centroid[1]), 255, thickness=1)
@@ -426,12 +495,17 @@ class Controller(tk.Frame):
             if ellipses != None:
                 (x,y),(ma,MA),angle = ellipses
                 self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = MA, ma, x, y, angle
-                cv2.putText(cv2image,'Ellipse fit active', (420,295), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
-                cv2.putText(cv2image,'Ellipticity: ' + str(round(1-(self.ma/self.MA),2)), (420,310), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
-                cv2.putText(cv2image,'Eccentricity: ' + str(round(np.sqrt(1-(self.ma/self.MA)**2),2)), (420,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
-                cv2.putText(cv2image,'Orientation (deg): ' + str(round(self.ellipse_angle,2)), (420,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
+                self.ellipticity, self.eccentricity = 1-(self.ma/self.MA), np.sqrt(1-(self.ma/self.MA)**2)
+                # cv2.putText(cv2image,'Ellipse fit active', (420,295), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
+                # cv2.putText(cv2image,'Ellipticity: ' + str(round(self.ellipticity,2)), (420,310), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
+                # cv2.putText(cv2image,'Eccentricity: ' + str(round(self.eccentricity,2)), (420,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
+                # cv2.putText(cv2image,'Orientation (deg): ' + str(round(self.ellipse_angle,2)), (420,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
                 cv2.ellipse(cv2image,ellipses,(0,255,0),1)
 
+            TrueFalse = lambda x: 'ACTIVE' if x != (np.nan, np.nan) and x is not None else 'INACTIVE'
+            cv2.putText(cv2image,"Profiler: ACTIVE | " + "Centroid: " + str(TrueFalse(centroid)) + " | Ellipse: " + str(TrueFalse(ellipses)) + " | Peak Cross: " + str(TrueFalse(peak_cross)), (10,40), cv2.FONT_HERSHEY_PLAIN, .85, (255,255,255))
+            
+            
         imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
             
         lmain.imgtk = imgtk
@@ -439,10 +513,16 @@ class Controller(tk.Frame):
         lmain.after(10, self.show_frame)
         
         self.img = frame
-        if time.time() - self.plot_time > 0.1 and self.active: #if tickrate period elapsed, update the plot with new data
-            self.refresh_plot()
-            self.plot_time = time.time()
         
+        curr_time = time.time()
+        if curr_time - self.plot_time > self.plot_tick and self.active: #if tickrate period elapsed, update the plot with new data
+            self.refresh_plot()
+            self.tick_counter += 1
+            if self.tick_counter > 5 and self.info_frame != None: #if 10 ticks passed update results window
+                self.info_frame.refresh_frame(self)
+                self.tick_counter = 0
+            self.plot_time = time.time() #update plot time info
+            
     def set_angle(self, option):
         '''Sets the rotation angle.'''
         self.angle = float(option)
@@ -450,18 +530,31 @@ class Controller(tk.Frame):
     def set_roi(self, option):
         '''Sets the region of interest size'''
         print 'changed roi to', option
-        self.roi = float(option)
+        self.roi = int(option)
         
-    def profiler_active(self):
+    def profiler_active(self, option=False):
         '''Turns profiling mode on or off'''
-        if self.variable4.get() == 1 and not self.active:
+        if option: #toggle box state if using key binding to toggle. if using box then sets correct box state, ticked or not ticked
+            if self.variable4.get() == 1:
+                box = False
+            else:
+                box = True
+        else:
+            if self.variable4.get() == 1:
+                box = True
+            else:
+                box = False
+                
+        if box and not self.active:
             print 'Profiler ACTIVE'
             self.pause_delay += time.time()-self.last_pause
             self.active = True
-        elif self.variable4.get() == 0 and self.active:
+            self.pb.select()
+        elif not box and self.active:
             print 'Profiler INACTIVE'
             self.last_pause = time.time()
             self.active = False
+            self.pb.deselect()
         
     def rotate_image(self, image):
         '''Rotates the given array by the rotation angle, returning as an array.'''
@@ -542,15 +635,22 @@ class Controller(tk.Frame):
         np.savetxt('output.csv',output,delimiter=',',header='Laser Beam Profiler Data Export. \n running time, centroid_hist_x, centroid_hist_y')
     
     def calc_results(self):
-        try:
-            self.top2.focus_set()
-            return
-        except Exception:
-            pass
-            
-	if self.info_frame != None:
-		self.info_frame.close()
-	self.info_frame = InfoFrame(self)
+        '''Opens calculation results window'''
+        if self.info_frame != None:
+            self.info_frame.close()
+        self.info_frame = InfoFrame(self)
+        
+    def change_config(self):
+        '''Opens configuration window'''
+        if self.config_frame != None:
+            self.config_frame.close()
+        self.config_frame = Config(self)
+        if self.config_frame.result is not None:
+            entry1, entry2 = self.config_frame.result
+            if entry1 is not None:
+                self.plot_tick = entry1
+            if entry2 is not None:
+                self.pixel_scale = entry2
         
 def on_closing():
         '''Closes the GUI.'''
@@ -561,5 +661,6 @@ def on_closing():
         
 c = Controller(root)
 c.pack()
+root.bind('<space>', lambda e: c.profiler_active(option=True))
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()
