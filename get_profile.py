@@ -1,3 +1,6 @@
+#!/usr/bin/python
+# -*- coding: latin-1 -*-
+          
 import Tkinter as tk
 import ttk
 import tkSimpleDialog
@@ -7,6 +10,7 @@ from PIL import Image, ImageTk
 import numpy as np
 import time
 import math
+import re
 
 import tkMessageBox
 
@@ -22,6 +26,7 @@ from matplotlib.figure import Figure
 
 from lib import analysis
 from lib import output
+from lib import interface
 
 root = tk.Tk()
 lmain = tk.Label(root)
@@ -31,20 +36,25 @@ class Config(tkSimpleDialog.Dialog):
     def body(self, master):
         tk.Label(master, text="Plot refresh rate /s:").grid(row=0)
         tk.Label(master, text="Pixel size (um):").grid(row=1)
+        tk.Label(master, text="Angle (deg):").grid(row=2)
 
         self.e1 = tk.Entry(master)
         self.e2 = tk.Entry(master)
+        self.e3 = tk.Entry(master)
         
         self.e1.delete(0, tk.END)
         self.e1.insert(0, str(c.plot_tick))
         self.e2.delete(0, tk.END)
         self.e2.insert(0, str(c.pixel_scale))
+        self.e3.delete(0, tk.END)
+        self.e3.insert(0, str(c.angle))
 
         self.e1.grid(row=0, column=1)
         self.e2.grid(row=1, column=1)
+        self.e3.grid(row=2, column=1)
         
-        self.cb = tk.Checkbutton(master, text="Hardcopy")
-        self.cb.grid(row=2, columnspan=2, sticky=tk.W)
+        # self.cb = tk.Checkbutton(master, text="Hardcopy")
+        # self.cb.grid(row=2, columnspan=2, sticky=tk.W)
 
         self.rb = tk.Button(master, text="Reset to default", command=self.reset_values)
         self.rb.grid(row=3, columnspan=2, sticky=tk.W)
@@ -65,7 +75,12 @@ class Config(tkSimpleDialog.Dialog):
                 pixel_scale = None
             else:
                 pixel_scale = float(pixel_scale)
-            self.result = plot_tick, pixel_scale
+            angle = self.e3.get()
+            if angle == '':
+                angle = None
+            else:
+                angle = float(angle)
+            self.result = plot_tick, pixel_scale, angle
             return 1
         except ValueError:
             tkMessageBox.showwarning(
@@ -78,23 +93,37 @@ class Config(tkSimpleDialog.Dialog):
         self.e1.delete(0, tk.END)
         self.e1.insert(0, '0.1')
         self.e2.delete(0, tk.END)
-        self.e2.insert(0, '1')
+        self.e2.insert(0, '2.8')
+        self.e3.delete(0, tk.END)
+        self.e3.insert(0, '0')
         
     def close(self):
         self.destroy()
-        
+       
 class InfoFrame(tk.Frame):
     def __init__(self, parent):
         self.window = tk.Toplevel(parent)
-        self.window.minsize(200,300)
+        self.window.minsize(200,350)
         
-        self.tree = ttk.Treeview(self.window,columns=("Unit","Value"))
+        self.passfail_frame = None
+        
+        self.tree = ttk.Treeview(self.window,columns=("Unit","Value","Pass/Fail Test","Min.","Max.","Min.","Max."))
         self.tree.heading("#0", text='Parameter', anchor=tk.W)
         self.tree.column("#0", stretch=0)
         self.tree.heading("#1", text='Unit', anchor=tk.W)
-        self.tree.column("#1", stretch=0)
+        self.tree.column("#1",  minwidth=0, width=35, stretch=1)
         self.tree.heading("#2", text='Value', anchor=tk.W)
-        self.tree.column("#2", stretch=0)
+        self.tree.column("#2",  minwidth=0, width=150, stretch=1)
+        self.tree.heading("#3", text='Pass/Fail Test', anchor=tk.W)
+        self.tree.column("#3",  minwidth=0, width=80, stretch=1)
+        self.tree.heading("#4", text='Min.', anchor=tk.W)
+        self.tree.column("#4",  minwidth=0, width=70, stretch=1)
+        self.tree.heading("#5", text='Max.', anchor=tk.W)
+        self.tree.column("#5",  minwidth=0, width=70, stretch=1)
+        self.tree.heading("#6", text='Min.', anchor=tk.W)
+        self.tree.column("#6",  minwidth=0, width=70, stretch=1)
+        self.tree.heading("#7", text='Max.', anchor=tk.W)
+        self.tree.column("#7",  minwidth=0, width=70, stretch=1)
 
         self.raw_rows = ["Beam Width (4 sigma)", "Beam Diameter (4 sigma)", "Effective Beam Diameter", "Peak Position", "Centroid Position", "Total Power"]
         self.raw_units = ["um"]*len(self.raw_rows)
@@ -107,20 +136,51 @@ class InfoFrame(tk.Frame):
         self.raw_values = [str(w).replace('(nan, nan)', '-') for w in self.raw_values]
         self.ellipse_values = [w.replace('None', '-') for w in self.ellipse_values]
         self.ellipse_values = [w.replace('(nan, nan)', '-') for w in self.ellipse_values]
-                    
+        
+        self.raw_passfail = ['False'] * len(self.raw_values)
+        self.ellipse_passfail = ['False'] * len(self.raw_values)
+        self.raw_xbounds = [('x ≥ 0.00', 'x ≤ 0.00'),
+                        ('0.00', '0.00'),
+                        ('0.00', '0.00'),
+                        ('x ≥ 0.00', 'x ≤ 0.00'),
+                        ('x ≥ 0.00', 'x ≤ 0.00'),
+                        ('0.00', '0.00')
+                        ]
+        self.ellipse_xbounds = [('Min. ≥ 0.00', 'Min. ≤ 0.00'),
+                        ('0.00', '0.00'),
+                        ('0.00', '0.00'),
+                        ('0.00', '0.00')
+                        ]
+        self.raw_ybounds = [('y ≥ 0.00', 'y ≤ 0.00'),
+                        (' ', ' '),
+                        (' ', ' '),
+                        ('y ≥ 0.00', 'y ≤ 0.00'),
+                        ('y ≥ 0.00', 'y ≤ 0.00'),
+                        (' ', ' ')
+                        ]
+        self.ellipse_ybounds = [('Maj. ≥ 0.00', 'Maj. ≤ 0.00'),
+                        (' ', ' '),
+                        (' ', ' '),
+                        (' ', ' ')
+                        ]
+                   
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i]))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.raw_passfail[i], self.raw_xbounds[i][0], self.raw_xbounds[i][1], self.raw_ybounds[i][0], self.raw_ybounds[i][1]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i]))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.ellipse_passfail[i], self.ellipse_xbounds[i][0], self.ellipse_xbounds[i][1], self.ellipse_ybounds[i][0], self.ellipse_ybounds[i][1]))
         self.tree.see("23")
         
         self.tree.pack(expand=True,fill=tk.BOTH)
         
         button_refresh = tk.Button(self.window, text="refresh", command=lambda: self.refresh_frame(parent))
-        button_refresh.pack()
+        button_refresh.pack(padx=5, pady=20, side=tk.LEFT)
+        button_pf = tk.Button(self.window, text="toggle pass/fail test", command=lambda: self.pass_fail(parent))
+        button_pf.pack(padx=5, pady=20, side=tk.LEFT)
+        button_edit = tk.Button(self.window, text="edit", command=lambda: self.edit(parent))
+        button_edit.pack(padx=5, pady=20, side=tk.LEFT)
         
         self.refresh_frame(parent)
     
@@ -128,21 +188,78 @@ class InfoFrame(tk.Frame):
         self.raw_values = [str(np.random.random()), str(np.random.random()), str(np.random.random()), str(parent.peak_cross), str(parent.centroid), str(np.random.random())]
         self.ellipse_values = ['(' + str(parent.MA) + ', ' + str(parent.ma) + ')', str(parent.ellipticity), str(parent.eccentricity), str(parent.ellipse_angle)]
         
-        self.raw_values = [w.replace('None', '-') for w in self.raw_values]
-        self.raw_values = [w.replace('(nan, nan)', '-') for w in self.raw_values]
+        self.raw_values = [str(w).replace('None', '-') for w in self.raw_values]
+        self.raw_values = [str(w).replace('(nan, nan)', '-') for w in self.raw_values]
         self.ellipse_values = [w.replace('None', '-') for w in self.ellipse_values]
         self.ellipse_values = [w.replace('(nan, nan)', '-') for w in self.ellipse_values]
         
         self.tree.delete(*self.tree.get_children())
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i]))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.raw_passfail[i], self.raw_xbounds[i][0], self.raw_xbounds[i][1], self.raw_ybounds[i][0], self.raw_ybounds[i][1]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i]))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.ellipse_passfail[i], self.ellipse_xbounds[i][0], self.ellipse_xbounds[i][1], self.ellipse_ybounds[i][0], self.ellipse_ybounds[i][1]))
         self.tree.see("23")
 
+    def pass_fail(self, parent):
+        selected_item = self.tree.selection()
+        if len(selected_item) == 1:
+            if len(str(selected_item[0])) == 2:
+                index, row_num = map(int,str(selected_item[0]))
+                print 'toggling pass/fail state'
+                if index == 1:
+                    if self.raw_passfail[row_num] == 'True':
+                        self.raw_passfail[row_num] = 'False'
+                    else:
+                        self.raw_passfail[row_num] = 'True'
+                elif index == 2:
+                    if self.ellipse_passfail[row_num] == 'True':
+                        self.ellipse_passfail[row_num] = 'False'
+                    else:
+                        self.ellipse_passfail[row_num] = 'True'
+                self.refresh_frame(parent)
+            
+    def edit(self, parent):
+        selected_item = self.tree.selection()
+        if len(selected_item) == 1:
+            if len(str(selected_item[0])) == 2:
+                index, row_num = map(int,str(selected_item[0]))
+                if index == 1:
+                    if self.raw_ybounds[0] == (' ', ' '):
+                        print 'getting x and y bounds'
+                        passfailbounds = self.change_pass_fail(parent, True) #get x and y bounds
+                        if passfailbounds is not None:
+                            self.raw_ybounds[row_num] = passfailbounds[0], passfailbounds[1]
+                    else:
+                        print 'getting x bounds'
+                        passfailbounds = self.change_pass_fail(parent, False) #get just x bounds
+                    if passfailbounds is not None:
+                        self.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
+                elif index == 2:
+                    if self.ellipse_ybounds[0] == (' ', ' '):
+                        print 'getting x and y bounds'
+                        passfailbounds = self.change_pass_fail(parent, True) #get x and y bounds
+                        if passfailbounds is not None:
+                            self.ellipse_ybounds[row_num] = (passfailbounds[0], passfailbounds[1])
+                    else:
+                        print 'getting x bounds'
+                        passfailbounds = self.change_pass_fail(parent, False) #get just x bounds
+                    if passfailbounds is not None:
+                        self.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
+
+                self.refresh_frame(parent)
+                    
+    def change_pass_fail(self, parent, manyopt):
+        '''Opens passfail window'''
+        if self.passfail_frame != None:
+            self.passfail_frame.close()
+        print '@@@', manyopt
+        self.passfail_frame = interface.PassFailDialogue(parent, manyopt)
+        if self.passfail_frame.result is not None:
+            return self.passfail_frame.result
+            
     def close(self):
         self.window.destroy()
         
@@ -164,14 +281,16 @@ class Controller(tk.Frame):
         self.running_time = np.array([]) #arrays for information logged throughout the running period
         self.centroid_hist_x, self.centroid_hist_y = np.array([]), np.array([])
         self.peak_hist_x, self.peak_hist_y = np.array([]), np.array([])
+        self.ellipse_hist_angle = np.array([])
         self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = np.nan, np.nan, np.nan, np.nan, None
         self.ellipticity, self.eccentricity = None, None
         self.tick_counter = 0
-        self.plot_tick = 0.1 #refresh rate of plots
-        self.pixel_scale = 1 #default pixel scale of webcam
+        self.plot_tick = 0.1 #refresh rate of plots in sec
+        self.pixel_scale = 2.8 #default pixel scale of webcam in um
         
         self.info_frame = None
         self.config_frame = None
+        self.passfail_frame = None
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
@@ -255,15 +374,15 @@ class Controller(tk.Frame):
             # command = self.change_gain)
         # self.scale2.pack()
         
-        self.scale3 = tk.Scale(labelframe, label='rotate',
-            from_=0, to=360,
-            length=300, tickinterval=30,
-            showvalue='yes', 
-            orient='horizontal',
-            command = self.set_angle)
-        self.scale3.pack()
-               
-        b = tk.Button(labelframe, text="Sound", command=lambda: output.main())
+        # self.scale3 = tk.Scale(labelframe, label='rotate',
+            # from_=0, to=360,
+            # length=300, tickinterval=30,
+            # showvalue='yes', 
+            # orient='horizontal',
+            # command = self.set_angle)
+        # self.scale3.pack()
+       
+        b = tk.Button(labelframe, text="Sound", command=lambda: output.WavePlayerLoop(freq=440.*(self.peak_cross[0]/640.), length=10., volume=0.5).start())
         b.pack(fill=tk.BOTH)
 
         self.make_fig() #make figure environment
@@ -338,6 +457,7 @@ class Controller(tk.Frame):
             plt.plot(self.running_time-self.running_time[0], self.centroid_hist_y, 'r-', label='centroid y coordinate')
             plt.plot(self.running_time-self.running_time[0], self.peak_hist_x, 'y-', label='peak x coordinate')
             plt.plot(self.running_time-self.running_time[0], self.peak_hist_y, 'g-', label='peak y coordinate')
+            plt.plot(self.running_time-self.running_time[0], self.ellipse_hist_angle, 'c-', label='ellipse orientation')
             if self.running_time[-1] - self.running_time[0] <= 60:
                 plt.xlim(0, 60)
             else:
@@ -485,11 +605,6 @@ class Controller(tk.Frame):
                 self.centroid = None
                 peak_cross = (np.nan, np.nan)
                 self.peak_cross = None
-
-            #record data that should be logged throughout time
-            self.centroid_hist_x, self.centroid_hist_y = np.append(self.centroid_hist_x, centroid[0]), np.append(self.centroid_hist_y, centroid[1])
-            self.peak_hist_x, self.peak_hist_y = np.append(self.peak_hist_x, peak_cross[0]), np.append(self.peak_hist_y, peak_cross[1])
-            self.running_time = np.append(self.running_time, time.time()-self.pause_delay) #making sure to account for time that pause has been active
         
             ellipses = analysis.find_ellipses(tracking) #fit ellipse and print data to screen
             if ellipses != None:
@@ -501,7 +616,15 @@ class Controller(tk.Frame):
                 # cv2.putText(cv2image,'Eccentricity: ' + str(round(self.eccentricity,2)), (420,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
                 # cv2.putText(cv2image,'Orientation (deg): ' + str(round(self.ellipse_angle,2)), (420,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0))
                 cv2.ellipse(cv2image,ellipses,(0,255,0),1)
+            else:
+                self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = np.nan, np.nan, np.nan, np.nan, np.nan
 
+            #record data that should be logged throughout time
+            self.centroid_hist_x, self.centroid_hist_y = np.append(self.centroid_hist_x, centroid[0]), np.append(self.centroid_hist_y, centroid[1])
+            self.peak_hist_x, self.peak_hist_y = np.append(self.peak_hist_x, peak_cross[0]), np.append(self.peak_hist_y, peak_cross[1])
+            self.ellipse_hist_angle = np.append(self.ellipse_hist_angle, self.ellipse_angle)
+            self.running_time = np.append(self.running_time, time.time()-self.pause_delay) #making sure to account for time that pause has been active
+            
             TrueFalse = lambda x: 'ACTIVE' if x != (np.nan, np.nan) and x is not None else 'INACTIVE'
             cv2.putText(cv2image,"Profiler: ACTIVE | " + "Centroid: " + str(TrueFalse(centroid)) + " | Ellipse: " + str(TrueFalse(ellipses)) + " | Peak Cross: " + str(TrueFalse(peak_cross)), (10,40), cv2.FONT_HERSHEY_PLAIN, .85, (255,255,255))
             
@@ -518,9 +641,9 @@ class Controller(tk.Frame):
         if curr_time - self.plot_time > self.plot_tick and self.active: #if tickrate period elapsed, update the plot with new data
             self.refresh_plot()
             self.tick_counter += 1
-            if self.tick_counter > 5 and self.info_frame != None: #if 10 ticks passed update results window
-                self.info_frame.refresh_frame(self)
-                self.tick_counter = 0
+            # if self.tick_counter > 10 and self.info_frame != None: #if 10 ticks passed update results window
+                # self.info_frame.refresh_frame(self)
+                # self.tick_counter = 0
             self.plot_time = time.time() #update plot time info
             
     def set_angle(self, option):
@@ -646,11 +769,13 @@ class Controller(tk.Frame):
             self.config_frame.close()
         self.config_frame = Config(self)
         if self.config_frame.result is not None:
-            entry1, entry2 = self.config_frame.result
-            if entry1 is not None:
-                self.plot_tick = entry1
-            if entry2 is not None:
-                self.pixel_scale = entry2
+            plot_tick, pixel_scale, angle = self.config_frame.result
+            if plot_tick is not None:
+                self.plot_tick = plot_tick
+            if pixel_scale is not None:
+                self.pixel_scale = pixel_scale
+            if angle is not None:
+                self.angle = angle
         
 def on_closing():
         '''Closes the GUI.'''

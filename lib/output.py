@@ -1,32 +1,45 @@
 import math
 import numpy as np
-import pyaudio
 import cv2
+import pyaudio
+import threading
 
-def sine(frequency, length, rate):
-    length = int(length * rate)
-    factor = float(frequency) * (math.pi * 2) / rate
-    return np.sin(np.arange(length) * factor)
+class WavePlayerLoop(threading.Thread) :
+  """
+  A simple class based on PyAudio to play sine wave at certain frequency.
+  It's a threading class. You can play audio while your application
+  continues to do stuff.
+  """
 
+  def __init__(self, freq=440., length=1., volume=0.5):
+    threading.Thread.__init__(self)
+    self.p = pyaudio.PyAudio()
 
-def play_tone(stream, frequency=440, length=1, rate=44100):
-    chunks = []
-    chunks.append(sine(frequency, length, rate))
+    self.volume = volume     # range [0.0, 1.0]
+    self.fs = 44100          # sampling rate, Hz, must be integer
+    self.duration = length   # in seconds, may be float
+    self.f = freq            # sine frequency, Hz, may be float
 
-    chunk = np.concatenate(chunks) * 0.25
+  def run(self) :
+    """
+    Just another name for self.start()
+    """
+    # generate samples, note conversion to float32 array
+    self.samples = (np.sin(2*np.pi*np.arange(self.fs*self.duration)*self.f/self.fs)).astype(np.float32)
 
-    stream.write(chunk.astype(np.float32).tostring())
+    # for paFloat32 sample values must be in range [-1.0, 1.0]
+    self.stream = self.p.open(format=pyaudio.paFloat32,
+                    channels=1,
+                    rate=self.fs,
+                    output=True)
 
+    # play. May repeat with different volume values (if done interactively) 
+    self.stream.write(self.volume*self.samples)
 
-def main():
-    p = pyaudio.PyAudio()
-    stream = p.open(format=pyaudio.paFloat32,
-                    channels=1, rate=44100, output=1)
+    self.stream.stop_stream()
+    self.stream.close()
 
-    play_tone(stream)
-
-    stream.close()
-    p.terminate()
+    self.p.terminate()
     
 def rotate_image(image, angle):
     """
