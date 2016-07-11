@@ -227,25 +227,25 @@ class InfoFrame(tk.Frame):
             if len(str(selected_item[0])) == 2:
                 index, row_num = map(int,str(selected_item[0]))
                 if index == 1:
-                    if self.raw_ybounds[0] == (' ', ' '):
+                    if self.raw_ybounds[row_num] == (' ', ' '):
                         print 'getting x and y bounds'
-                        passfailbounds = self.change_pass_fail(parent, True) #get x and y bounds
+                        passfailbounds = self.change_pass_fail(parent, False) #get x and y bounds
                         if passfailbounds is not None:
                             self.raw_ybounds[row_num] = passfailbounds[0], passfailbounds[1]
                     else:
                         print 'getting x bounds'
-                        passfailbounds = self.change_pass_fail(parent, False) #get just x bounds
+                        passfailbounds = self.change_pass_fail(parent, True) #get just x bounds
                     if passfailbounds is not None:
                         self.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
                 elif index == 2:
-                    if self.ellipse_ybounds[0] == (' ', ' '):
+                    if self.ellipse_ybounds[row_num] == (' ', ' '):
                         print 'getting x and y bounds'
-                        passfailbounds = self.change_pass_fail(parent, True) #get x and y bounds
+                        passfailbounds = self.change_pass_fail(parent, False) #get x and y bounds
                         if passfailbounds is not None:
                             self.ellipse_ybounds[row_num] = (passfailbounds[0], passfailbounds[1])
                     else:
                         print 'getting x bounds'
-                        passfailbounds = self.change_pass_fail(parent, False) #get just x bounds
+                        passfailbounds = self.change_pass_fail(parent, True) #get just x bounds
                     if passfailbounds is not None:
                         self.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
 
@@ -255,7 +255,6 @@ class InfoFrame(tk.Frame):
         '''Opens passfail window'''
         if self.passfail_frame != None:
             self.passfail_frame.close()
-        print '@@@', manyopt
         self.passfail_frame = interface.PassFailDialogue(parent, manyopt)
         if self.passfail_frame.result is not None:
             return self.passfail_frame.result

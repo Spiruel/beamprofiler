@@ -2,12 +2,11 @@ import Tkinter as tk
 import tkSimpleDialog, tkMessageBox
        
 class PassFailDialogue(tkSimpleDialog.Dialog):
-    def body(self, master, manyopt=True):
-        if manyopt:
-            self.manyopt = True
-        else:
-            self.manyopt = False
-            
+	
+    def __init__(self, master, manyopt=True):
+	self.manyopt = manyopt
+	tkSimpleDialog.Dialog.__init__(self, master)
+    def body(self, master):
         if self.manyopt:
             tk.Label(master, text="x > ").grid(row=0)
             tk.Label(master, text="x < ").grid(row=1)
@@ -34,8 +33,8 @@ class PassFailDialogue(tkSimpleDialog.Dialog):
             self.e4.grid(row=3, column=1)
             return self.e1 # initial focus                  
         else:
-            tk.Label(master, text="min ").grid(row=0)
-            tk.Label(master, text="max ").grid(row=1)
+            #tk.Label(master, text="min ").grid(row=0)
+            #tk.Label(master, text="max ").grid(row=1)
 
             self.e1 = tk.Entry(master)
             self.e2 = tk.Entry(master)
