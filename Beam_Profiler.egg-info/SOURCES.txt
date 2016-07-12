@@ -1,9 +1,0 @@
-setup.py
-Beam_Profiler.egg-info/PKG-INFO
-Beam_Profiler.egg-info/SOURCES.txt
-Beam_Profiler.egg-info/dependency_links.txt
-Beam_Profiler.egg-info/top_level.txt
-lib/__init__.py
-lib/analysis.py
-lib/device.py
-lib/interface.py

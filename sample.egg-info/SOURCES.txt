@@ -1,9 +1,0 @@
-setup.py
-lib/__init__.py
-lib/device.py
-lib/interface.py
-lib/processor.py
-sample.egg-info/PKG-INFO
-sample.egg-info/SOURCES.txt
-sample.egg-info/dependency_links.txt
-sample.egg-info/top_level.txt

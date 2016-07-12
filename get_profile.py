@@ -4,15 +4,13 @@
 import Tkinter as tk
 import ttk
 import tkSimpleDialog
+import tkMessageBox
 
 import cv2
 from PIL import Image, ImageTk
 import numpy as np
 import time
 import math
-import re
-
-import tkMessageBox
 
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.ndimage.interpolation import zoom
@@ -24,9 +22,9 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from lib import analysis
-from lib import output
-from lib import interface
+from utils import analysis
+from utils import output
+from utils import interface
 
 root = tk.Tk()
 lmain = tk.Label(root)
@@ -35,7 +33,7 @@ lmain.pack()
 class Config(tkSimpleDialog.Dialog):
     def body(self, master):
         tk.Label(master, text="Plot refresh rate /s:").grid(row=0)
-        tk.Label(master, text="Pixel size (um):").grid(row=1)
+        tk.Label(master, text="Pixel size (µm):").grid(row=1)
         tk.Label(master, text="Angle (deg):").grid(row=2)
 
         self.e1 = tk.Entry(master)
@@ -126,51 +124,24 @@ class InfoFrame(tk.Frame):
         self.tree.column("#7",  minwidth=0, width=70, stretch=1)
 
         self.raw_rows = ["Beam Width (4 sigma)", "Beam Diameter (4 sigma)", "Effective Beam Diameter", "Peak Position", "Centroid Position", "Total Power"]
-        self.raw_units = ["um"]*len(self.raw_rows)
-        self.raw_values = [np.random.random(), np.random.random(), np.random.random(), parent.peak_cross, parent.centroid, np.random.random()]
+        self.raw_units = ["µm"]*len(self.raw_rows)
+        self.raw_values = [parent.beam_width, parent.beam_diameter, np.random.random(), parent.peak_cross, parent.centroid, np.random.random()]
         self.ellipse_rows = ["Ellipse axes", "Ellipticity", "Eccentricity", "Orientation"]
-        self.ellipse_units = ["um", "%", "%", "deg"]
+        self.ellipse_units = ["µm", "%", "%", "deg"]
         self.ellipse_values = ['(' + str(parent.MA) + ', ' + str(parent.ma) + ')', str(parent.ellipticity), str(parent.eccentricity), str(parent.ellipse_angle)]
         
         self.raw_values = [str(w).replace('None', '-') for w in self.raw_values]
         self.raw_values = [str(w).replace('(nan, nan)', '-') for w in self.raw_values]
         self.ellipse_values = [w.replace('None', '-') for w in self.ellipse_values]
         self.ellipse_values = [w.replace('(nan, nan)', '-') for w in self.ellipse_values]
-        
-        self.raw_passfail = ['False'] * len(self.raw_values)
-        self.ellipse_passfail = ['False'] * len(self.raw_values)
-        self.raw_xbounds = [('x ≥ 0.00', 'x ≤ 0.00'),
-                        ('0.00', '0.00'),
-                        ('0.00', '0.00'),
-                        ('x ≥ 0.00', 'x ≤ 0.00'),
-                        ('x ≥ 0.00', 'x ≤ 0.00'),
-                        ('0.00', '0.00')
-                        ]
-        self.ellipse_xbounds = [('Min. ≥ 0.00', 'Min. ≤ 0.00'),
-                        ('0.00', '0.00'),
-                        ('0.00', '0.00'),
-                        ('0.00', '0.00')
-                        ]
-        self.raw_ybounds = [('y ≥ 0.00', 'y ≤ 0.00'),
-                        (' ', ' '),
-                        (' ', ' '),
-                        ('y ≥ 0.00', 'y ≤ 0.00'),
-                        ('y ≥ 0.00', 'y ≤ 0.00'),
-                        (' ', ' ')
-                        ]
-        self.ellipse_ybounds = [('Maj. ≥ 0.00', 'Maj. ≤ 0.00'),
-                        (' ', ' '),
-                        (' ', ' '),
-                        (' ', ' ')
-                        ]
-                   
+                          
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.raw_passfail[i], self.raw_xbounds[i][0], self.raw_xbounds[i][1], self.raw_ybounds[i][0], self.raw_ybounds[i][1]))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], parent.raw_passfail[i], parent.raw_xbounds[i][0], parent.raw_xbounds[i][1], parent.raw_ybounds[i][0], parent.raw_ybounds[i][1]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.ellipse_passfail[i], self.ellipse_xbounds[i][0], self.ellipse_xbounds[i][1], self.ellipse_ybounds[i][0], self.ellipse_ybounds[i][1]))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], parent.ellipse_passfail[i], parent.ellipse_xbounds[i][0], parent.ellipse_xbounds[i][1], parent.ellipse_ybounds[i][0], parent.ellipse_ybounds[i][1]))
         self.tree.see("23")
         
         self.tree.pack(expand=True,fill=tk.BOTH)
@@ -185,7 +156,7 @@ class InfoFrame(tk.Frame):
         self.refresh_frame(parent)
     
     def refresh_frame(self, parent):
-        self.raw_values = [str(np.random.random()), str(np.random.random()), str(np.random.random()), str(parent.peak_cross), str(parent.centroid), str(np.random.random())]
+        self.raw_values = [parent.beam_width, parent.beam_diameter, np.random.random(), parent.peak_cross, parent.centroid, np.random.random()]
         self.ellipse_values = ['(' + str(parent.MA) + ', ' + str(parent.ma) + ')', str(parent.ellipticity), str(parent.eccentricity), str(parent.ellipse_angle)]
         
         self.raw_values = [str(w).replace('None', '-') for w in self.raw_values]
@@ -196,11 +167,11 @@ class InfoFrame(tk.Frame):
         self.tree.delete(*self.tree.get_children())
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.raw_passfail[i], self.raw_xbounds[i][0], self.raw_xbounds[i][1], self.raw_ybounds[i][0], self.raw_ybounds[i][1]))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], parent.raw_passfail[i], parent.raw_xbounds[i][0], parent.raw_xbounds[i][1], parent.raw_ybounds[i][0], parent.raw_ybounds[i][1]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.ellipse_passfail[i], self.ellipse_xbounds[i][0], self.ellipse_xbounds[i][1], self.ellipse_ybounds[i][0], self.ellipse_ybounds[i][1]))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], parent.ellipse_passfail[i], parent.ellipse_xbounds[i][0], parent.ellipse_xbounds[i][1], parent.ellipse_ybounds[i][0], parent.ellipse_ybounds[i][1]))
         self.tree.see("23")
 
     def pass_fail(self, parent):
@@ -210,15 +181,15 @@ class InfoFrame(tk.Frame):
                 index, row_num = map(int,str(selected_item[0]))
                 print 'toggling pass/fail state'
                 if index == 1:
-                    if self.raw_passfail[row_num] == 'True':
-                        self.raw_passfail[row_num] = 'False'
+                    if parent.raw_passfail[row_num] == 'True':
+                        parent.raw_passfail[row_num] = 'False'
                     else:
-                        self.raw_passfail[row_num] = 'True'
+                        parent.raw_passfail[row_num] = 'True'
                 elif index == 2:
-                    if self.ellipse_passfail[row_num] == 'True':
-                        self.ellipse_passfail[row_num] = 'False'
+                    if parent.ellipse_passfail[row_num] == 'True':
+                        parent.ellipse_passfail[row_num] = 'False'
                     else:
-                        self.ellipse_passfail[row_num] = 'True'
+                        parent.ellipse_passfail[row_num] = 'True'
                 self.refresh_frame(parent)
             
     def edit(self, parent):
@@ -227,35 +198,37 @@ class InfoFrame(tk.Frame):
             if len(str(selected_item[0])) == 2:
                 index, row_num = map(int,str(selected_item[0]))
                 if index == 1:
-                    if self.raw_ybounds[row_num] == (' ', ' '):
+                    if parent.raw_ybounds[row_num] != (' ', ' '):
                         print 'getting x and y bounds'
-                        passfailbounds = self.change_pass_fail(parent, False) #get x and y bounds
+                        passfailbounds = self.change_pass_fail(parent, True, (parent.raw_xbounds[row_num], parent.raw_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
-                            self.raw_ybounds[row_num] = passfailbounds[0], passfailbounds[1]
+                            parent.raw_xbounds[row_num] = (parent.raw_xbounds[row_num][0][:5] + passfailbounds[0], parent.raw_xbounds[row_num][1][:5] + passfailbounds[1])
+                            parent.raw_ybounds[row_num] = (parent.raw_ybounds[row_num][0][:5] + passfailbounds[2], parent.raw_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
                         print 'getting x bounds'
-                        passfailbounds = self.change_pass_fail(parent, True) #get just x bounds
-                    if passfailbounds is not None:
-                        self.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
+                        passfailbounds = self.change_pass_fail(parent, False, parent.raw_xbounds[row_num]) #get just x bounds
+                        if passfailbounds is not None:
+                            parent.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
                 elif index == 2:
-                    if self.ellipse_ybounds[row_num] == (' ', ' '):
+                    if parent.ellipse_ybounds[row_num] != (' ', ' '):
                         print 'getting x and y bounds'
-                        passfailbounds = self.change_pass_fail(parent, False) #get x and y bounds
+                        passfailbounds = self.change_pass_fail(parent, True, (parent.ellipse_xbounds[row_num], parent.ellipse_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
-                            self.ellipse_ybounds[row_num] = (passfailbounds[0], passfailbounds[1])
+                            parent.ellipse_xbounds[row_num] = (parent.ellipse_xbounds[row_num][0][:5] + passfailbounds[0], parent.ellipse_xbounds[row_num][1][:5] + passfailbounds[1])
+                            parent.ellipse_ybounds[row_num] = (parent.ellipse_ybounds[row_num][0][:5] + passfailbounds[2], parent.ellipse_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
                         print 'getting x bounds'
-                        passfailbounds = self.change_pass_fail(parent, True) #get just x bounds
-                    if passfailbounds is not None:
-                        self.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
+                        passfailbounds = self.change_pass_fail(parent, False, parent.ellipse_xbounds[row_num]) #get just x bounds
+                        if passfailbounds is not None:
+                            parent.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
 
                 self.refresh_frame(parent)
                     
-    def change_pass_fail(self, parent, manyopt):
+    def change_pass_fail(self, parent, manyopt, bounds):
         '''Opens passfail window'''
         if self.passfail_frame != None:
             self.passfail_frame.close()
-        self.passfail_frame = interface.PassFailDialogue(parent, manyopt)
+        self.passfail_frame = interface.PassFailDialogue(parent, manyopt, bounds)
         if self.passfail_frame.result is not None:
             return self.passfail_frame.result
             
@@ -272,10 +245,18 @@ class Controller(tk.Frame):
         self.angle = 0
         self.roi = 1
         self.camera_index = 0
+        self.beam_width, self.beam_diameter = None, None
         self.centroid = None
         self.peak_cross = None
         self.colourmap = None
         self.fig_type = 'cross profile'
+        self.graphs = { #if graphs are shown or not
+        'centroid_x':True,
+        'centroid_y':True,
+        'peak_x':True,
+        'peak_y':True,
+        'ellipse_orientation':True
+        }
         self.counter = 0
         self.running_time = np.array([]) #arrays for information logged throughout the running period
         self.centroid_hist_x, self.centroid_hist_y = np.array([]), np.array([])
@@ -287,6 +268,33 @@ class Controller(tk.Frame):
         self.plot_tick = 0.1 #refresh rate of plots in sec
         self.pixel_scale = 2.8 #default pixel scale of webcam in um
         
+        self.raw_passfail = ['False'] * 6
+        self.ellipse_passfail = ['False'] * 4
+        self.raw_xbounds = [('x ≥ 0.00', 'x ≤ 0.00'), #for pass/fail testing
+                        ('0.00', '0.00'),
+                        ('0.00', '0.00'),
+                        ('x ≥ 0.00', 'x ≤ 0.00'),
+                        ('x ≥ 0.00', 'x ≤ 0.00'),
+                        ('0.00', '0.00')
+                        ]
+        self.ellipse_xbounds = [('M ≥ 0.00', 'M ≤ 0.00'),
+                        ('0.00', '0.00'),
+                        ('0.00', '0.00'),
+                        ('0.00', '0.00')
+                        ]
+        self.raw_ybounds = [('y ≥ 0.00', 'y ≤ 0.00'),
+                        (' ', ' '),
+                        (' ', ' '),
+                        ('y ≥ 0.00', 'y ≤ 0.00'),
+                        ('y ≥ 0.00', 'y ≤ 0.00'),
+                        (' ', ' ')
+                        ]
+        self.ellipse_ybounds = [('m ≥ 0.00', 'm ≤ 0.00'),
+                        (' ', ' '),
+                        (' ', ' '),
+                        (' ', ' ')
+                        ]
+                        
         self.info_frame = None
         self.config_frame = None
         self.passfail_frame = None
@@ -299,15 +307,14 @@ class Controller(tk.Frame):
         
         ###################################################################NAVBAR
         menubar = tk.Menu(self.parent)
-        fileMenu = tk.Menu(menubar, tearoff=0)
-        fileMenu.add_command(label="Calculation Results", command=self.calc_results)
+        fileMenu = tk.Menu(menubar, tearoff=1)
         fileMenu.add_command(label="Export Data", command=self.save_csv)
         fileMenu.add_separator()
         fileMenu.add_command(label="Quit", command=self.close_window)
         menubar.add_cascade(label="File", menu=fileMenu)
         
-        controlMenu = tk.Menu(menubar, tearoff=0)
-        submenu = tk.Menu(controlMenu, tearoff=0)
+        controlMenu = tk.Menu(menubar, tearoff=1)
+        submenu = tk.Menu(controlMenu, tearoff=1)
         submenu.add_command(label="0", command= lambda: self.change_cam(0))
         submenu.add_command(label="1", command= lambda: self.change_cam(1))
         submenu.add_command(label="2", command= lambda: self.change_cam(2))
@@ -317,11 +324,26 @@ class Controller(tk.Frame):
         controlMenu.add_command(label="Clear Windows", command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message"))
         menubar.add_cascade(label="Control", menu=controlMenu)
 
-        imageMenu = tk.Menu(menubar, tearoff=0)       
+        windowMenu = tk.Menu(menubar, tearoff=1)
+        submenu = tk.Menu(windowMenu, tearoff=1)
+        windowMenu.add_command(label="Calculation Results", command=self.calc_results)
+        windowMenu.add_command(label="Cross Profile", command=lambda: self.change_fig('cross profile'))
+        windowMenu.add_command(label="2D Gaussian", command=lambda: self.change_fig('2d gaussian fit'))
+        windowMenu.add_command(label="2D Surface", command=lambda: self.change_fig('2d surface'))
+        windowMenu.add_separator()
+        windowMenu.add_command(label="Plot Positions", command=lambda: self.change_fig('positions'))
+        windowMenu.add_command(label="Plot Power", command=lambda: self.change_fig('power'))
+        windowMenu.add_command(label="Plot Orientation", command=lambda: self.change_fig('orientation'))
+        windowMenu.add_separator()
+        windowMenu.add_command(label="Beam Stability", command=lambda: self.change_fig('beam stability'))
+        windowMenu.add_command(label="Ellipse Fit", command=lambda: self.change_fig('ellipse fit'))
+        menubar.add_cascade(label="Windows", menu=windowMenu)
+        
+        imageMenu = tk.Menu(menubar, tearoff=1)       
         imageMenu.add_command(label="Take Screenshot", command=self.save_screenshot)
         imageMenu.add_command(label="Take Video /10 s", command=lambda: self.save_video(10))
         imageMenu.add_separator()
-        submenu = tk.Menu(imageMenu, tearoff=0)
+        submenu = tk.Menu(imageMenu, tearoff=1)
         submenu.add_command(label="Normal", command= lambda: self.change_colourmap('normal'))
         submenu.add_command(label="Jet", command= lambda: self.change_colourmap('jet'))
         submenu.add_command(label="Autumn", command=lambda: self.change_colourmap('autumn'))
@@ -330,7 +352,7 @@ class Controller(tk.Frame):
         
         menubar.add_cascade(label="Image", underline=0, menu=imageMenu)        
         
-        helpmenu = tk.Menu(menubar, tearoff=0)
+        helpmenu = tk.Menu(menubar, tearoff=1)
         helpmenu.add_command(label="About", command=lambda: self.info_window("Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
         menubar.add_cascade(label="Help", menu=helpmenu)
 
@@ -346,7 +368,7 @@ class Controller(tk.Frame):
         
         self.variable3 = tk.StringVar(labelframe)
         self.variable3.set("cross profile")
-        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit","2d surface", "beam stability", "centroid/peak cross history", "ellipse fit", command = self.change_fig)
+        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit","2d surface", "beam stability", "positions", "ellipse fit", "orientation", command = self.change_fig)
         self.dropdown3.pack()
         
         self.scale1 = tk.Scale(labelframe, label='exposure',
@@ -380,7 +402,23 @@ class Controller(tk.Frame):
             # orient='horizontal',
             # command = self.set_angle)
         # self.scale3.pack()
-       
+        
+        self.var1 = tk.IntVar(root); self.var1.set(1)
+        b = tk.Checkbutton(labelframe, text="Centroid x position", command=lambda: self.toggle_graph('centroid_x'), variable=self.var1)
+        b.pack(fill=tk.BOTH)
+        self.var2 = tk.IntVar(root); self.var2.set(1)
+        b = tk.Checkbutton(labelframe, text="Centroid y position", command=lambda: self.toggle_graph('centroid_y'), variable=self.var2)
+        b.pack(fill=tk.BOTH)
+        self.var3 = tk.IntVar(root); self.var3.set(1)
+        b = tk.Checkbutton(labelframe, text="Peak x position", command=lambda: self.toggle_graph('peak_x'), variable=self.var3)
+        b.pack(fill=tk.BOTH)
+        self.var4 = tk.IntVar(root); self.var4.set(1)
+        b = tk.Checkbutton(labelframe, text="Peak y position", command=lambda: self.toggle_graph('peak_y'), variable=self.var4)
+        b.pack(fill=tk.BOTH)
+        self.var5 = tk.IntVar(root); self.var5.set(1)
+        b = tk.Checkbutton(labelframe, text="Ellipse_orientation", command=lambda: self.toggle_graph('ellipse_orientation'), variable=self.var5)
+        b.pack(fill=tk.BOTH)
+        
         b = tk.Button(labelframe, text="Sound", command=lambda: output.WavePlayerLoop(freq=440.*(self.peak_cross[0]/640.), length=10., volume=0.5).start())
         b.pack(fill=tk.BOTH)
 
@@ -401,9 +439,11 @@ class Controller(tk.Frame):
             self.fig = Figure(figsize=(4,4), projection='3d', dpi=100)
         elif self.fig_type == 'beam stability':
             self.fig = Figure(figsize=(4,4), dpi=100)
-        elif self.fig_type == 'centroid/peak cross history':
+        elif self.fig_type == 'positions':
             self.fig = Figure(figsize=(4,4), dpi=100)
         elif self.fig_type == 'ellipse fit':
+            self.fig = Figure(figsize=(4,4), dpi=100)
+        elif self.fig_type == 'orientation':
             self.fig = Figure(figsize=(4,4), dpi=100)
 
         # self.ax.set_ylim(0,255)
@@ -439,6 +479,8 @@ class Controller(tk.Frame):
                 params = analysis.fit_gaussian(img, with_bounds=False)
                 # plt.imshow(self.img[y-size/2:y+size/2, x-size/2:x+size/2]) #show image for debug purposes.
                 analysis.plot_gaussian(plt.gca(), img, params)
+                plt.xlim(0, size)
+                plt.ylim(size, 0)
         elif self.fig_type == '2d surface':
             ax = self.fig.add_subplot(1,1,1,projection='3d')
             z = np.asarray(grayscale)[100:250,250:400]
@@ -451,19 +493,27 @@ class Controller(tk.Frame):
             plt.plot(self.centroid_hist_x, self.centroid_hist_y)
             plt.xlim(0, self.height)
             plt.ylim(self.width, 0)
-        elif self.fig_type == 'centroid/peak cross history':
-            plt.plot(self.running_time-self.running_time[0], self.centroid_hist_x, 'b-', label='centroid x coordinate')
-            plt.plot(self.running_time-self.running_time[0], self.centroid_hist_y, 'r-', label='centroid y coordinate')
-            plt.plot(self.running_time-self.running_time[0], self.peak_hist_x, 'y-', label='peak x coordinate')
-            plt.plot(self.running_time-self.running_time[0], self.peak_hist_y, 'g-', label='peak y coordinate')
-            plt.plot(self.running_time-self.running_time[0], self.ellipse_hist_angle, 'c-', label='ellipse orientation')
+        elif self.fig_type == 'positions':
+            if self.graphs['centroid_x']: plt.plot(self.running_time-self.running_time[0], self.centroid_hist_x, 'b-', label='centroid x coordinate')
+            if self.graphs['centroid_y']: plt.plot(self.running_time-self.running_time[0], self.centroid_hist_y, 'r-', label='centroid y coordinate')
+            if self.graphs['peak_x']: plt.plot(self.running_time-self.running_time[0], self.peak_hist_x, 'y-', label='peak x coordinate')
+            if self.graphs['peak_y']: plt.plot(self.running_time-self.running_time[0], self.peak_hist_y, 'g-', label='peak y coordinate')
             if self.running_time[-1] - self.running_time[0] <= 60:
                 plt.xlim(0, 60)
             else:
                 index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
                 plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
             plt.ylim(0,self.height)
-            plt.legend(frameon=False)
+            plt.plot([0,0],'w.'); plt.legend(frameon=False)
+        elif self.fig_type == 'orientation':
+            if self.graphs['ellipse_orientation']: plt.plot(self.running_time-self.running_time[0], self.ellipse_hist_angle, 'c-', label='ellipse orientation')
+            if self.running_time[-1] - self.running_time[0] <= 60:
+                plt.xlim(0, 60)
+            else:
+                index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
+                plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
+            plt.ylim(0,360)
+            plt.plot([0,0],'w.'); plt.legend(frameon=False)
         elif self.fig_type == 'ellipse fit':
             pts = analysis.get_ellipse_coords(a=self.ma, b=self.MA, x=self.ellipse_x, y=self.ellipse_y, angle=-self.ellipse_angle)
             plt.plot(pts[:,0], pts[:,1])
@@ -482,6 +532,8 @@ class Controller(tk.Frame):
             
             plt.xlim(0, self.height)
             plt.ylim(self.width, 0)
+        else:
+            print 'fig type not found.'
             
         # self.ax[0].hold(True)
         # self.ax[1].hold(True)
@@ -497,6 +549,7 @@ class Controller(tk.Frame):
             self.fig_type = option
             plt.cla()
             plt.clf()
+            self.refresh_plot()
             
     def change_exp(self, option):
         '''Changes the exposure time of the camera.'''
@@ -568,6 +621,7 @@ class Controller(tk.Frame):
             tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY) #this should be analysis frame soon
                  
             centroid = analysis.find_centroid(tracking)
+
             if centroid != (np.nan, np.nan):
             
                 #if centroid then peak cross can be calculated quickly
@@ -627,6 +681,13 @@ class Controller(tk.Frame):
             TrueFalse = lambda x: 'ACTIVE' if x != (np.nan, np.nan) and x is not None else 'INACTIVE'
             cv2.putText(cv2image,"Profiler: ACTIVE | " + "Centroid: " + str(TrueFalse(centroid)) + " | Ellipse: " + str(TrueFalse(ellipses)) + " | Peak Cross: " + str(TrueFalse(peak_cross)), (10,40), cv2.FONT_HERSHEY_PLAIN, .85, (255,255,255))
             
+            self.pass_fail_testing()
+            
+            self.beam_width = analysis.get_beam_width(analysis_frame, self.centroid)
+            if self.beam_width is not None:
+                self.beam_diameter = np.mean(self.beam_width)
+            else:
+                self.beam_diameter = None
             
         imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
             
@@ -775,6 +836,83 @@ class Controller(tk.Frame):
                 self.pixel_scale = pixel_scale
             if angle is not None:
                 self.angle = angle
+                
+    def pass_fail_testing(self):
+        '''Sets off alarm if pass/fail test criteria are not met.'''
+        for index in np.where(np.array(self.raw_passfail) == 'True')[0]:
+            x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.raw_xbounds[index]]
+            if index == 0:
+                if self.beam_width is not None:
+                    y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
+                    if self.beam_width[0] <= float(x_lower[5:]) or self.beam_width[0] >= float(x_upper[5:]) or self.beam_width[1] <= y_lower or self.beam_width[1] >= y_upper:
+                        self.alert("Pass/Fail Test", "Beam Width has failed to meet criteria!")
+                        self.raw_passfail[index] = 'False' #reset value
+                        self.info_frame.refresh_frame(self)
+            if index == 1:
+                if self.beam_diameter is not None:
+                    if self.beam_diameter <= x_lower or self.beam_diameter >= x_upper:
+                        self.alert("Pass/Fail Test", "Beam Diameter has failed to meet criteria!")
+                        self.raw_passfail[index] = 'False' #reset value
+                        self.info_frame.refresh_frame(self)
+            if index == 2:
+                print 'check eff. beam diameter'
+            if index == 3:
+                if self.peak_cross is not None:
+                    y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
+                    if self.peak_cross[0] <= float(x_lower[5:]) or self.peak_cross[0] >= float(x_upper[5:]) or self.peak_cross[1] <= y_lower or self.peak_cross[1] >= y_upper:
+                            self.alert("Pass/Fail Test", "Peak Position has failed to meet criteria!")
+                            self.raw_passfail[index] = 'False' #reset value
+                            self.info_frame.refresh_frame(self)
+            if index == 4:
+                if self.centroid is not None:
+                    y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
+                    if self.centroid[0] <= float(x_lower[5:]) or self.centroid[0] >= float(x_upper[5:]) or self.centroid[1] <= y_lower or self.centroid[1] >= y_upper:
+                            print bool(self.centroid[0] <= x_lower)
+                            print bool(self.centroid[0] >= x_upper)
+                            self.alert("Pass/Fail Test", "Centroid Position has failed to meet criteria!")
+                            self.raw_passfail[index] = 'False' #reset value
+                            self.info_frame.refresh_frame(self)
+            if index == 5:
+                print 'check total power'
+                               
+        for index in np.where(np.array(self.ellipse_passfail) == 'True')[0]:
+            x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.ellipse_xbounds[index]]
+            if index == 0:
+                if self.ma <= float(x_lower[5:]) or self.ma >= float(x_upper[5:]):
+                    y_lower, y_upper = [float(i[5:]) for i in self.ellipse_ybounds[index]]
+                    if self.MA <= y_lower or self.MA >= y_upper:
+                        self.alert("Pass/Fail Test", "Ellipse axes have failed to meet criteria!")
+                        self.ellipse_passfail[index] = 'False'
+                        self.info_frame.refresh_frame(self)
+            if index == 1:
+                if self.ellipticity <= x_lower or self.ellipticity >= x_upper:
+                    self.alert("Pass/Fail Test", "Ellipticity has failed to meet criteria!")
+                    self.ellipse_passfail[index] = 'False'
+                    self.info_frame.refresh_frame(self)
+            if index == 2:
+                if self.eccentricity <= x_lower or self.eccentricity >= x_upper:
+                    self.alert("Pass/Fail Test", "Eccentricity has failed to meet criteria!")
+                    self.ellipse_passfail[index] = 'False'
+                    self.info_frame.refresh_frame(self)
+            if index == 3:
+                if self.ellipse_angle <= x_lower or self.ellipse_angle >= x_upper:
+                    self.alert("Pass/Fail Test", "Ellipse orientation has failed to meet criteria!")
+                    self.ellipse_passfail[index] = 'False'
+                    self.info_frame.refresh_frame(self)
+
+    def alert(self, title, text):
+        '''Makes a sound and shows alert window'''
+        print '\a'
+        tkMessageBox.showerror(title, text)
+        
+    def toggle_graph(self, option):
+        if self.graphs[option]:
+            self.graphs[option] = False
+        elif not self.graphs[option]:
+            self.graphs[option] = True
+        else:
+            'Error. Something went wrong.'
+        self.refresh_plot()
         
 def on_closing():
         '''Closes the GUI.'''
