@@ -6,6 +6,18 @@ One Paragraph of project description goes here
 
 These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
 
+Software Features
+
+2D Profile | Beam Peak/Centroid/Ellipse
+3D Profile | Free Rotatable 3D Model
+Calculations | Beam Width (4-Sigma), Beam Diameter, Effective Beam Diameter, Peak Position, Centroid Position, Image Saturation, Total Power, Effective Area, Peak Density, Measured Ellipse Diameter, Ellipticity, Eccentricity, Orientation, Gaussian Ellipse Fit, Diameter
+X-Y Profiles |	Measured Data, Gaussian Fit (Storable)
+Plot Positions over Time | Peak and Centroid Position (Storable)
+Power over Time | Measured Data (Storable)
+Pass/Fail Test | Lockable, Selectable Parameters, Free Choice of Ranges
+Beam Stability | 2D Data of Centroid and Peak Positions over Time
+System Requirements | Windows™ XP SP2, Vista or Later. USB 2.0 Port, 100 MB HD, 512 MB RAM
+
 There are a few limitations:
 
   * Glass windows: they need to be removed, including the window that is
