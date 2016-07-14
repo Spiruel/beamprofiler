@@ -173,3 +173,7 @@ def scale(A, B, k):
     for y in range(0, k):
         for x in range(0, k):
             A[y:Y:k, x:X:k] = B
+            
+def gauss(x, *p):
+    A, mu, sigma = p
+    return A*np.exp(-(x-mu)**2/(2.*sigma**2))

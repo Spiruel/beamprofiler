@@ -13,13 +13,13 @@ import math
 
 from mpl_toolkits.mplot3d import Axes3D
 from scipy.ndimage.interpolation import zoom
-
+from scipy.optimize import curve_fit
+                
 import matplotlib
 matplotlib.use('TkAgg')
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 
 from utils import analysis
 from utils import output
@@ -50,11 +50,16 @@ class Config(tkSimpleDialog.Dialog):
         self.e2.grid(row=1, column=1)
         self.e3.grid(row=2, column=1)
         
-        # self.cb = tk.Checkbutton(master, text="Hardcopy")
-        # self.cb.grid(row=2, columnspan=2, sticky=tk.W)
-
         self.rb = tk.Button(master, text="Reset to default", command=self.reset_values)
-        self.rb.grid(row=3, columnspan=2, sticky=tk.W)
+        self.rb.grid(row=3, columnspan=2)
+        
+        self.expscale = tk.Scale(master, label='exposure',
+        from_=-15, to=-8,
+        length=300, tickinterval=1,
+        showvalue='yes', 
+        orient='horizontal',
+        command = c.change_exp)
+        self.expscale.grid(row=4, columnspan=2, sticky=tk.W)
         
         return self.e1 # initial focus
         
@@ -111,7 +116,8 @@ class Controller(tk.Frame):
         self.centroid = None
         self.peak_cross = None
         self.colourmap = None
-        self.fig_type = 'cross profile'
+        self.fig_type = 'x cross profile'
+        self.style_sheet = 'default'
         self.graphs = { #if graphs are shown or not
         'centroid_x':True,
         'centroid_y':True,
@@ -119,7 +125,6 @@ class Controller(tk.Frame):
         'peak_y':True,
         'ellipse_orientation':True
         }
-        self.counter = 0
         self.running_time = np.array([]) #arrays for information logged throughout the running period
         self.centroid_hist_x, self.centroid_hist_y = np.array([]), np.array([])
         self.peak_hist_x, self.peak_hist_y = np.array([]), np.array([])
@@ -192,7 +197,8 @@ class Controller(tk.Frame):
         windowMenu = tk.Menu(menubar, tearoff=1)
         submenu = tk.Menu(windowMenu, tearoff=1)
         windowMenu.add_command(label="Calculation Results", command=self.calc_results)
-        windowMenu.add_command(label="Cross Profile", command=lambda: self.change_fig('cross profile'))
+        windowMenu.add_command(label="x Cross Profile", command=lambda: self.change_fig('x cross profile'))
+        windowMenu.add_command(label="y Cross Profile", command=lambda: self.change_fig('y cross profile'))
         windowMenu.add_command(label="2D Gaussian", command=lambda: self.change_fig('2d gaussian fit'))
         windowMenu.add_command(label="2D Surface", command=lambda: self.change_fig('2d surface'))
         windowMenu.add_separator()
@@ -214,36 +220,50 @@ class Controller(tk.Frame):
         submenu.add_command(label="Autumn", command=lambda: self.change_colourmap('autumn'))
         submenu.add_command(label="Bone", command=lambda: self.change_colourmap('bone'))
         imageMenu.add_cascade(label='Change Colourmap', menu=submenu, underline=0)
+        submenu = tk.Menu(imageMenu, tearoff=1)
+        submenu.add_command(label='default', command=lambda: self.change_style('default'))
+        submenu.add_command(label='bmh', command=lambda: self.change_style('bmh'))
+        submenu.add_command(label='ggplot', command=lambda: self.change_style('ggplot'))
+        submenu.add_command(label='fivethirtyeight', command=lambda: self.change_style('fivethirtyeight'))
+        imageMenu.add_cascade(label='Change Plot Style', menu=submenu, underline=0)
         
         menubar.add_cascade(label="Image", underline=0, menu=imageMenu)        
         
         helpmenu = tk.Menu(menubar, tearoff=1)
-        helpmenu.add_command(label="About", command=lambda: self.info_window("Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
+        helpmenu.add_command(label="About", command=lambda: self.info_window("About", "Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
         menubar.add_cascade(label="Help", menu=helpmenu)
 
         self.parent.config(menu=menubar)
         ###################################################################NAVBAR
+          
+        # **** Tool Bar ****
+        toolbar = tk.Frame(self.parent)
+        
+        self.variable4 = tk.IntVar()
+        self.pb = tk.Checkbutton(toolbar, text="Profiler Active (<space>)", variable=self.variable4, command=self.profiler_active)
+        self.pb.pack(side=tk.LEFT, padx=2, pady=2)
+        
+        self.cog = tk.PhotoImage(file='cog.gif')
+        insertButt = tk.Button(toolbar, image=self.cog, text="Customise Toolbar")
+        insertButt.pack(side=tk.LEFT, padx=2, pady=2)
+        
+        toolbar.pack(side=tk.TOP, fill=tk.X)
+        
+        # **** Status Bar ****
+        self.status = tk.StringVar()
+        status_string = "Profiler: " + str(TrueFalse(self.active)) + " | " + "Centroid: " + str(TrueFalse(self.centroid)) + " | Ellipse: " + str(TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(TrueFalse(self.peak_cross))
+        self.status.set(status_string)
+        status_label = tk.Label(self.parent, textvariable=self.status, width = 65, pady = 5, anchor=tk.W)
+        status_label.pack(side=tk.BOTTOM, fill=tk.X)
        
         labelframe = tk.Frame(self) #left hand frame for various sliders and tweakables for direct control
         labelframe.pack(side=tk.LEFT) #.grid(row=0, column=0) 
-        
-        self.variable4 = tk.IntVar()
-        self.pb = tk.Checkbutton(labelframe, text="Profiler Active (<space>)", variable=self.variable4, command=self.profiler_active)
-        self.pb.pack(fill=tk.BOTH)
-        
+               
         self.variable3 = tk.StringVar(labelframe)
-        self.variable3.set("cross profile")
-        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "cross profile", "2d gaussian fit","2d surface", "beam stability", "positions", "ellipse fit", "orientation", command = self.change_fig)
+        self.variable3.set("x cross profile")
+        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "x cross profile", "y cross profile", "2d gaussian fit","2d surface", "beam stability", "positions", "ellipse fit", "orientation", command = self.change_fig)
         self.dropdown3.pack()
-        
-        self.scale1 = tk.Scale(labelframe, label='exposure',
-            from_=-100000, to=-100,
-            length=300, tickinterval=10000,
-            showvalue='yes', 
-            orient='horizontal',
-            command = self.change_exp)
-        self.scale1.pack()
-        
+              
         self.scale2 = tk.Scale(labelframe, label='ROI',
             from_=1, to=50,
             length=300, tickinterval=5,
@@ -251,6 +271,11 @@ class Controller(tk.Frame):
             orient='horizontal',
             command = self.set_roi)
         self.scale2.pack()
+        
+        self.variable4 = tk.IntVar(labelframe)
+        self.variable4.set(1)
+        self.dropdown4 = tk.OptionMenu(labelframe, self.variable4, 1, 2, 4, 6, 8, 16, 32, 64, command = self.set_roi)
+        self.dropdown4.pack()
         
         # self.scale2 = tk.Scale(labelframe, label='gain',
             # from_=-10000, to=10000,
@@ -296,22 +321,10 @@ class Controller(tk.Frame):
         plt.clf()
         plt.cla()
         
-        if self.fig_type == 'cross profile':
-            self.fig, self.ax = plt.subplots(1,2, gridspec_kw = {'width_ratios':[16, 9]})
-        elif self.fig_type == '2d gaussian fit':
-            self.fig = Figure(figsize=(4,4), dpi=100)
-        elif self.fig_type == '2d surface':
-            self.fig = Figure(figsize=(4,4), projection='3d', dpi=100)
-        elif self.fig_type == 'beam stability':
-            self.fig = Figure(figsize=(4,4), dpi=100)
-        elif self.fig_type == 'positions':
-            self.fig = Figure(figsize=(4,4), dpi=100)
-        elif self.fig_type == 'ellipse fit':
-            self.fig = Figure(figsize=(4,4), dpi=100)
-        elif self.fig_type == 'orientation':
-            self.fig = Figure(figsize=(4,4), dpi=100)
+        self.fig = plt.figure(figsize=(16,9), dpi=100)
+        if self.fig_type == '2d surface':
+            self.fig = Figure(figsize=(16,9), projection='3d', dpi=100)
 
-        # self.ax.set_ylim(0,255)
         canvas = FigureCanvasTkAgg(self.fig, self) 
         canvas.show() 
         canvas.get_tk_widget().pack() 
@@ -322,20 +335,32 @@ class Controller(tk.Frame):
         
     def refresh_plot(self):
         '''Updates the matplotlib figure with new data.'''
-        
         grayscale = self.analysis_frame #np.array(Image.fromarray(self.img).convert('L'))
         
-        if self.fig_type == 'cross profile':
+        if self.fig_type == 'x cross profile':
             if self.peak_cross != None:
-                # print 'beam width:', 4*np.std(grayscale[self.centroid[1],:]),4*np.std(grayscale[:,self.centroid[0]])
-                self.ax[0].plot(range(self.height), grayscale[self.peak_cross[1],:],'k-')
-                self.ax[1].plot(grayscale[:,self.peak_cross[0]], range(self.width),'k-')
+                plt.plot(range(self.height)[self.peak_cross[0]-20:self.peak_cross[0]+20], grayscale[self.peak_cross[1],:][self.peak_cross[0]-20:self.peak_cross[0]+20],'k-')
+                data = grayscale[self.peak_cross[1],:]
+                try:
+                    popt,pcov = curve_fit(output.gauss,range(self.height),data,p0=[250,self.peak_cross[0],20], maxfev=50)
+                    plt.plot(range(self.height)[self.peak_cross[0]-20:self.peak_cross[0]+20],output.gauss(range(self.height),*popt)[self.peak_cross[0]-20:self.peak_cross[0]+20],'r-')
+                except:
+                    print 'Problem! Could not fit x gaussian!'
                 
-                self.ax[0].set_xlim(0,self.height)
-                self.ax[0].set_ylim(0,255)
+                # plt.xlim(0,self.height)
+                plt.ylim(0,255)
+        elif self.fig_type == 'y cross profile':
+            if self.peak_cross != None:
+                plt.plot(range(self.width)[self.peak_cross[1]-20:self.peak_cross[1]+20], grayscale[:,self.peak_cross[0]][self.peak_cross[1]-20:self.peak_cross[1]+20],'k-')
+                data = grayscale[:,self.peak_cross[0]]
+                try:
+                    popt,pcov = curve_fit(output.gauss,range(self.width),data,p0=[250,self.peak_cross[1],20], maxfev=50)
+                    plt.plot(range(self.width)[self.peak_cross[1]-20:self.peak_cross[1]+20],output.gauss(range(self.width),*popt)[self.peak_cross[1]-20:self.peak_cross[1]+20],'r-')
+                except:
+                    print 'Problem! Could not fit y gaussian!'
                 
-                self.ax[1].set_xlim(0,255)
-                self.ax[1].set_ylim(self.width,0)              
+                # plt.xlim(0,self.width)
+                plt.ylim(0,255)
         elif self.fig_type == '2d gaussian fit':
             if self.peak_cross != None:
                 size = 50
@@ -361,6 +386,7 @@ class Controller(tk.Frame):
             plt.ylim(self.width, 0)
             plt.plot([0,0],'w.'); plt.legend(frameon=False)
         elif self.fig_type == 'positions':
+            # plt.xlabel('$time$ $/s$'); plt.ylabel('$position$ $/\mu m$')
             if self.graphs['centroid_x']: plt.plot(self.running_time-self.running_time[0], self.centroid_hist_x, 'b-', label='centroid x coordinate')
             if self.graphs['centroid_y']: plt.plot(self.running_time-self.running_time[0], self.centroid_hist_y, 'r-', label='centroid y coordinate')
             if self.graphs['peak_x']: plt.plot(self.running_time-self.running_time[0], self.peak_hist_x, 'y-', label='peak x coordinate')
@@ -382,25 +408,26 @@ class Controller(tk.Frame):
             plt.ylim(0,360)
             plt.plot([0,0],'w.'); plt.legend(frameon=False)
         elif self.fig_type == 'ellipse fit':
-            pts = self.analyse.get_ellipse_coords(a=self.ma, b=self.MA, x=self.ellipse_x, y=self.ellipse_y, angle=-self.ellipse_angle)
-            plt.plot(pts[:,0], pts[:,1])
-            
-            MA_x, MA_y = self.ma*math.cos(self.ellipse_angle*(np.pi/180)), self.ma*math.sin(self.ellipse_angle*(np.pi/180))
-            ma_x, ma_y = self.MA*math.sin(self.ellipse_angle*(np.pi/180)), self.MA*math.cos(self.ellipse_angle*(np.pi/180))
-            MA_xtop, MA_ytop = int(self.ellipse_x + MA_x), int(self.ellipse_y + MA_y)
-            MA_xbot, MA_ybot = int(self.ellipse_x - MA_x), int(self.ellipse_y - MA_y)
-            ma_xtop, ma_ytop = int(self.ellipse_x + ma_x), int(self.ellipse_y + ma_y) #find corners of ellipse
-            ma_xbot, ma_ybot = int(self.ellipse_x - ma_x), int(self.ellipse_y - ma_y)
-            
-            plt.plot(MA_xtop, MA_ytop, 'ro')
-            plt.plot(MA_xbot, MA_ybot, 'bo')
-            plt.plot(ma_xtop, ma_ybot, 'rx')
-            plt.plot(ma_xbot, ma_ytop, 'bx')
-            
-            plt.xlim(0, self.height)
-            plt.ylim(self.width, 0)
+            if str(self.ellipse_angle) != 'nan':
+                pts = self.analyse.get_ellipse_coords(a=self.ma, b=self.MA, x=self.ellipse_x, y=self.ellipse_y, angle=-self.ellipse_angle)
+                plt.plot(pts[:,0], pts[:,1])
+                
+                MA_x, MA_y = self.ma*math.cos(self.ellipse_angle*(np.pi/180)), self.ma*math.sin(self.ellipse_angle*(np.pi/180))
+                ma_x, ma_y = self.MA*math.sin(self.ellipse_angle*(np.pi/180)), self.MA*math.cos(self.ellipse_angle*(np.pi/180))
+                MA_xtop, MA_ytop = int(self.ellipse_x + MA_x), int(self.ellipse_y + MA_y)
+                MA_xbot, MA_ybot = int(self.ellipse_x - MA_x), int(self.ellipse_y - MA_y)
+                ma_xtop, ma_ytop = int(self.ellipse_x + ma_x), int(self.ellipse_y + ma_y) #find corners of ellipse
+                ma_xbot, ma_ybot = int(self.ellipse_x - ma_x), int(self.ellipse_y - ma_y)
+                
+                plt.plot(MA_xtop, MA_ytop, 'ro')
+                plt.plot(MA_xbot, MA_ybot, 'bo')
+                plt.plot(ma_xtop, ma_ybot, 'rx')
+                plt.plot(ma_xbot, ma_ytop, 'bx')
+                
+                plt.xlim(0, self.height)
+                plt.ylim(self.width, 0)
         else:
-            print 'fig type not found.'
+            print 'fig type not found.', self.fig_type
             
         # self.ax[0].hold(True)
         # self.ax[1].hold(True)
@@ -414,6 +441,17 @@ class Controller(tk.Frame):
         if self.fig_type != option:
             print 'changed fig', option
             self.fig_type = option
+            plt.cla()
+            plt.clf()
+            self.refresh_plot()
+            
+    def change_style(self, option):
+        '''Changes the style sheet used in the plot'''
+        print self.style_sheet, option
+        if self.style_sheet != option:
+            print 'changed style sheet', option
+            self.style_sheet = option
+            plt.style.use(option)
             plt.cla()
             plt.clf()
             self.refresh_plot()
@@ -481,11 +519,13 @@ class Controller(tk.Frame):
         if self.angle != 0: #apply rotation
             cv2image = self.rotate_image(cv2image)
         
-        dim = np.shape(cv2image)
+        # dim = np.shape(cv2image)
         
         self.analysis_frame = cv2.cvtColor(analysis_frame,cv2.COLOR_BGR2GRAY)
-
-        # print self.analyse.get_max()
+        
+        cv2.line(cv2image, (50, 50), (50+28*2, 50), 255, thickness=4)
+        cv2.putText(cv2image, str(round(((28*2*self.pixel_scale)/self.roi),2)) + ' um', (47, 45), cv2.FONT_HERSHEY_PLAIN, .8, (255,255,255))
+        
         if self.active:
             # convert to greyscale
             # tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY) #this should be analysis frame soon
@@ -545,10 +585,7 @@ class Controller(tk.Frame):
             self.peak_hist_x, self.peak_hist_y = np.append(self.peak_hist_x, peak_cross[0]), np.append(self.peak_hist_y, peak_cross[1])
             self.ellipse_hist_angle = np.append(self.ellipse_hist_angle, self.ellipse_angle)
             self.running_time = np.append(self.running_time, time.time()-self.pause_delay) #making sure to account for time that pause has been active
-            
-            TrueFalse = lambda x: 'ACTIVE' if x != (np.nan, np.nan) and x is not None else 'INACTIVE'
-            cv2.putText(cv2image,"Profiler: ACTIVE | " + "Centroid: " + str(TrueFalse(centroid)) + " | Ellipse: " + str(TrueFalse(ellipses)) + " | Peak Cross: " + str(TrueFalse(peak_cross)), (10,40), cv2.FONT_HERSHEY_PLAIN, .85, (255,255,255))
-            
+
             self.pass_fail_testing()
             
             self.beam_width = self.analyse.get_beam_width(self.centroid)
@@ -556,7 +593,10 @@ class Controller(tk.Frame):
                 self.beam_diameter = np.mean(self.beam_width)
             else:
                 self.beam_diameter = None
-            
+                
+        status_string = "Profiler: " + str(TrueFalse(self.active)) + " | " + "Centroid: " + str(TrueFalse(self.centroid)) + " | Peak Cross: " + str(TrueFalse(self.peak_cross) + " | Ellipse: " + str(TrueFalse(self.ellipse_angle)))
+        self.status.set(status_string)
+                
         imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
             
         lmain.imgtk = imgtk
@@ -625,12 +665,10 @@ class Controller(tk.Frame):
     def close_window(self):
         on_closing()
         
-    def info_window(self, info, modal=False):
-        self.counter += 1
+    def info_window(self, title, info, modal=False):
         t = tk.Toplevel(self)
-        t.wm_title("Window #%s" % self.counter)
+        t.wm_title(title)
         l = tk.Label(t, text=info)
-        # l = tk.Label(t, text="This is window #%s" % self.counter)
         l.pack(side="top", fill="both", expand=True, padx=100, pady=100)
         if modal:
             l.focus_set()                                                        
@@ -772,7 +810,8 @@ class Controller(tk.Frame):
     def alert(self, title, text):
         '''Makes a sound and shows alert window'''
         print '\a'
-        tkMessageBox.showerror(title, text)
+        self.info_window(title, text)
+        # tkMessageBox.showerror(title, text)
         
     def toggle_graph(self, option):
         if self.graphs[option]:
@@ -789,6 +828,12 @@ def on_closing():
         root.destroy()
         c.cap.release()
         cv2.destroyAllWindows()
+        
+def TrueFalse(x):
+    if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan':
+        return 'ACTIVE'
+    else:
+        return 'INACTIVE'
         
 c = Controller(root)
 c.pack()
