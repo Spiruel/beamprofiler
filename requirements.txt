@@ -1,0 +1,7 @@
+matplotlib==1.5.1
+numpy==1.11.1
+PyAudio==0.2.9
+Pillow==3.3.0
+cv2==1.0
+scipy==0.18.0rc2
+setuptools==24.0.3

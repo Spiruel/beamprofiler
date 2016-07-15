@@ -60,6 +60,13 @@ class Config(tkSimpleDialog.Dialog):
         orient='horizontal',
         command = c.change_exp)
         self.expscale.grid(row=4, columnspan=2, sticky=tk.W)
+                
+        self.roiscale = tk.IntVar(master)
+        self.roiscale.set(1)
+        self.dropdown5 = tk.OptionMenu(master, self.roiscale, 1, 2, 4, 8, 16, command = c.set_roi)
+        roitext = tk.Label(master, text="zoom factor")
+        roitext.grid(row=5, columnspan=2, sticky=tk.W)
+        self.dropdown5.grid(row=6, columnspan=2, sticky=tk.W)
         
         return self.e1 # initial focus
         
@@ -97,7 +104,7 @@ class Config(tkSimpleDialog.Dialog):
         self.e2.delete(0, tk.END)
         self.e2.insert(0, '2.8')
         self.e3.delete(0, tk.END)
-        self.e3.insert(0, '0')
+        self.e3.insert(0, '0.0')
         
     def close(self):
         self.destroy()
@@ -264,19 +271,14 @@ class Controller(tk.Frame):
         self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "x cross profile", "y cross profile", "2d gaussian fit","2d surface", "beam stability", "positions", "ellipse fit", "orientation", command = self.change_fig)
         self.dropdown3.pack()
               
-        self.scale2 = tk.Scale(labelframe, label='ROI',
-            from_=1, to=50,
-            length=300, tickinterval=5,
-            showvalue='yes', 
-            orient='horizontal',
-            command = self.set_roi)
-        self.scale2.pack()
-        
-        self.variable4 = tk.IntVar(labelframe)
-        self.variable4.set(1)
-        self.dropdown4 = tk.OptionMenu(labelframe, self.variable4, 1, 2, 4, 6, 8, 16, 32, 64, command = self.set_roi)
-        self.dropdown4.pack()
-        
+        # self.scale2 = tk.Scale(labelframe, label='ROI',
+            # from_=1, to=50,
+            # length=300, tickinterval=5,
+            # showvalue='yes', 
+            # orient='horizontal',
+            # command = self.set_roi)
+        # self.scale2.pack()
+               
         # self.scale2 = tk.Scale(labelframe, label='gain',
             # from_=-10000, to=10000,
             # length=300, tickinterval=1,
@@ -339,36 +341,54 @@ class Controller(tk.Frame):
         
         if self.fig_type == 'x cross profile':
             if self.peak_cross != None:
-                plt.plot(range(self.height)[self.peak_cross[0]-20:self.peak_cross[0]+20], grayscale[self.peak_cross[1],:][self.peak_cross[0]-20:self.peak_cross[0]+20],'k-')
-                data = grayscale[self.peak_cross[1],:]
+                xs = np.arange(self.width)[self.peak_cross[0]-20:self.peak_cross[0]+20]
+                ys = grayscale[self.peak_cross[1],:]
+                plt.plot(xs, ys[self.peak_cross[0]-20:self.peak_cross[0]+20],'k-')
                 try:
-                    popt,pcov = curve_fit(output.gauss,range(self.height),data,p0=[250,self.peak_cross[0],20], maxfev=50)
-                    plt.plot(range(self.height)[self.peak_cross[0]-20:self.peak_cross[0]+20],output.gauss(range(self.height),*popt)[self.peak_cross[0]-20:self.peak_cross[0]+20],'r-')
+                    popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys,p0=[250,self.peak_cross[0],20], maxfev=50)
+                    plt.plot(xs,output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-20:self.peak_cross[0]+20],'r-')
                 except:
                     print 'Problem! Could not fit x gaussian!'
                 
-                # plt.xlim(0,self.height)
+                # plt.xlim(0,self.width)
                 plt.ylim(0,255)
         elif self.fig_type == 'y cross profile':
             if self.peak_cross != None:
-                plt.plot(range(self.width)[self.peak_cross[1]-20:self.peak_cross[1]+20], grayscale[:,self.peak_cross[0]][self.peak_cross[1]-20:self.peak_cross[1]+20],'k-')
-                data = grayscale[:,self.peak_cross[0]]
+                xs = np.arange(self.height)[self.peak_cross[1]-20:self.peak_cross[1]+20]
+                ys = grayscale[:,self.peak_cross[0]]
+                plt.plot(xs, ys[self.peak_cross[1]-20:self.peak_cross[1]+20],'k-')
                 try:
-                    popt,pcov = curve_fit(output.gauss,range(self.width),data,p0=[250,self.peak_cross[1],20], maxfev=50)
-                    plt.plot(range(self.width)[self.peak_cross[1]-20:self.peak_cross[1]+20],output.gauss(range(self.width),*popt)[self.peak_cross[1]-20:self.peak_cross[1]+20],'r-')
+                    popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys,p0=[250,self.peak_cross[1],20], maxfev=50)
+                    plt.plot(xs,output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-20:self.peak_cross[1]+20],'r-')
                 except:
                     print 'Problem! Could not fit y gaussian!'
                 
-                # plt.xlim(0,self.width)
+                # plt.xlim(0,self.height)
                 plt.ylim(0,255)
         elif self.fig_type == '2d gaussian fit':
             if self.peak_cross != None:
                 size = 50
                 x, y = self.peak_cross
                 img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
-                # plt.imshow(img) #show image for debug purposes.
                 params = self.analyse.fit_gaussian(with_bounds=False)
-                self.analyse.plot_gaussian(plt.gca(), params)
+                # # # # # # # # # # # # # # # self.analyse.plot_gaussian(plt.gca(), params)
+                
+                if self.colourmap is None:
+                    cmap=plt.cm.BrBG
+                elif self.colourmap == 2:
+                    cmap=plt.cm.jet
+                elif self.colourmap == 0:
+                    cmap=plt.cm.autumn
+                elif self.colourmap == 1:
+                    cmap=plt.cm.bone
+                plt.imshow(img, cmap=cmap, interpolation='nearest', origin='lower')
+                
+                xs = np.arange(50)
+                ys_x = grayscale[self.peak_cross[1],:]
+                ys_y = grayscale[:,self.peak_cross[0]]
+                plt.plot(xs, 50 - (ys_x[self.peak_cross[0]-25:self.peak_cross[0]+25]/16),'y-', lw=2)
+                plt.plot(ys_y[self.peak_cross[1]-25:self.peak_cross[1]+25]/16, xs,'y-', lw=2)
+                   
                 plt.xlim(0, size)
                 plt.ylim(size, 0)
         elif self.fig_type == '2d surface':
@@ -382,8 +402,8 @@ class Controller(tk.Frame):
         elif self.fig_type == 'beam stability':
             plt.plot(self.centroid_hist_x, self.centroid_hist_y, 'r-', label='centroid')
             plt.plot(self.peak_hist_x, self.peak_hist_y, 'b-', label='peak cross')
-            plt.xlim(0, self.height)
-            plt.ylim(self.width, 0)
+            plt.xlim(0, self.width)
+            plt.ylim(self.height, 0)
             plt.plot([0,0],'w.'); plt.legend(frameon=False)
         elif self.fig_type == 'positions':
             # plt.xlabel('$time$ $/s$'); plt.ylabel('$position$ $/\mu m$')
@@ -396,7 +416,7 @@ class Controller(tk.Frame):
             else:
                 index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
                 plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
-            plt.ylim(0,self.height)
+            plt.ylim(0,self.width)
             plt.plot([0,0],'w.'); plt.legend(frameon=False)
         elif self.fig_type == 'orientation':
             if self.graphs['ellipse_orientation']: plt.plot(self.running_time-self.running_time[0], self.ellipse_hist_angle, 'c-', label='ellipse orientation')
@@ -424,8 +444,8 @@ class Controller(tk.Frame):
                 plt.plot(ma_xtop, ma_ybot, 'rx')
                 plt.plot(ma_xbot, ma_ytop, 'bx')
                 
-                plt.xlim(0, self.height)
-                plt.ylim(self.width, 0)
+                plt.xlim(0, self.width)
+                plt.ylim(self.height, 0)
         else:
             print 'fig type not found.', self.fig_type
             
@@ -470,12 +490,12 @@ class Controller(tk.Frame):
 
     def init_camera(self):
         '''Initialises the camera with a set resolution.'''
-        self.height, self.width = 640, 360
+        self.width, self.height = 640, 360
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap:
             raise Exception("Camera not accessible")
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.height)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
                   
     def change_cam(self, option):
         '''Switches between camera_indexes and therefore different connected cameras.'''
@@ -505,9 +525,9 @@ class Controller(tk.Frame):
         # frame = cv2.flip(frame, 1)
         
         if self.roi != 1: #apply region of interest scaling
-            size = int(round(self.height/self.roi)), int(round(self.width/self.roi))
-            analysis_frame = frame[self.width/2-size[1]:self.width/2+size[1], self.height/2-size[0]:self.height/2+size[0]]
-            frame = cv2.resize(analysis_frame,None,fx=self.roi/2, fy=self.roi/2, interpolation = cv2.INTER_CUBIC)
+            size = self.width/self.roi, self.height/self.roi
+            analysis_frame = frame[(self.height/2)-(size[1]/2):(self.height/2)+(size[1]/2), (self.width/2)-(size[0]/2):(self.width/2)+(size[0]/2)]
+            frame = cv2.resize(analysis_frame,None,fx=self.width/size[0], fy=self.height/size[1], interpolation = cv2.INTER_CUBIC)
         else:
             analysis_frame = frame
             
@@ -553,7 +573,7 @@ class Controller(tk.Frame):
                     # cv2.putText(cv2image,'Max Value: ' + str(np.max(analysis_frame)) + ' at (' + str(int(peak_cross[0]))+ ', ' + str(int(peak_cross[1])) + ')', (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
                     # cv2.circle(cv2image,(int(peak_cross[0]), int(peak_cross[1])),10,255,thickness=3)
                 
-                if centroid[0] < self.height or centroid[1] < self.width: #ensure centroid lies within correct regions
+                if centroid[0] < self.width or centroid[1] < self.height: #ensure centroid lies within correct regions
                     # cv2.circle(cv2image,centroid,10,255,thickness=10)
                     # cv2.putText(cv2image,'Centroid position: ' + str(centroid), (10,310), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
                     self.centroid = centroid
@@ -693,7 +713,7 @@ class Controller(tk.Frame):
             if writer is None:
                 # store the image dimensions, initialzie the video writer,
                 # and construct the zeros array
-                (h, w) = (self.width, self.height)
+                (h, w) = (self.height, self.width)
                 writer = cv2.VideoWriter("output.avi", fourcc, 30,
                     (w * 2, h * 2), True)
                 zeros = np.zeros((h, w), dtype="uint8")
