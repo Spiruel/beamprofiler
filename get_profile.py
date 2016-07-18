@@ -25,6 +25,8 @@ from utils import analysis
 from utils import output
 from utils import interface
 
+import threading
+
 root = tk.Tk()
 lmain = tk.Label(root)
 lmain.pack()
@@ -144,6 +146,7 @@ class Controller(tk.Frame):
         
         self.analysis_frame = None
         self.analyse = analysis.Analyse(self) #creates instance for analysis routines
+        self.analyse.start()
         
         self.raw_passfail = ['False'] * 6
         self.ellipse_passfail = ['False'] * 4
@@ -206,7 +209,7 @@ class Controller(tk.Frame):
         windowMenu.add_command(label="Calculation Results", command=self.calc_results)
         windowMenu.add_command(label="x Cross Profile", command=lambda: self.change_fig('x cross profile'))
         windowMenu.add_command(label="y Cross Profile", command=lambda: self.change_fig('y cross profile'))
-        windowMenu.add_command(label="2D Gaussian", command=lambda: self.change_fig('2d gaussian fit'))
+        windowMenu.add_command(label="2D Profile", command=lambda: self.change_fig('2d profile'))
         windowMenu.add_command(label="2D Surface", command=lambda: self.change_fig('2d surface'))
         windowMenu.add_separator()
         windowMenu.add_command(label="Plot Positions", command=lambda: self.change_fig('positions'))
@@ -214,7 +217,6 @@ class Controller(tk.Frame):
         windowMenu.add_command(label="Plot Orientation", command=lambda: self.change_fig('orientation'))
         windowMenu.add_separator()
         windowMenu.add_command(label="Beam Stability", command=lambda: self.change_fig('beam stability'))
-        windowMenu.add_command(label="Ellipse Fit", command=lambda: self.change_fig('ellipse fit'))
         menubar.add_cascade(label="Windows", menu=windowMenu)
         
         imageMenu = tk.Menu(menubar, tearoff=1)       
@@ -268,7 +270,7 @@ class Controller(tk.Frame):
                
         self.variable3 = tk.StringVar(labelframe)
         self.variable3.set("x cross profile")
-        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "x cross profile", "y cross profile", "2d gaussian fit","2d surface", "beam stability", "positions", "ellipse fit", "orientation", command = self.change_fig)
+        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "x cross profile", "y cross profile", "2d profile","2d surface", "beam stability", "positions", "orientation", command = self.change_fig)
         self.dropdown3.pack()
               
         # self.scale2 = tk.Scale(labelframe, label='ROI',
@@ -365,13 +367,13 @@ class Controller(tk.Frame):
                 
                 # plt.xlim(0,self.height)
                 plt.ylim(0,255)
-        elif self.fig_type == '2d gaussian fit':
+        elif self.fig_type == '2d profile':
             if self.peak_cross != None:
                 size = 50
                 x, y = self.peak_cross
                 img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
-                params = self.analyse.fit_gaussian(with_bounds=False)
-                # # # # # # # # # # # # # # # self.analyse.plot_gaussian(plt.gca(), params)
+                # # # # # params = self.analyse.fit_gaussian(with_bounds=False)
+                # # # # # # # # # self.analyse.plot_gaussian(plt.gca(), params)
                 
                 if self.colourmap is None:
                     cmap=plt.cm.BrBG
@@ -383,14 +385,44 @@ class Controller(tk.Frame):
                     cmap=plt.cm.bone
                 plt.imshow(img, cmap=cmap, interpolation='nearest', origin='lower')
                 
-                xs = np.arange(50)
+                xs = np.arange(size)
                 ys_x = grayscale[self.peak_cross[1],:]
                 ys_y = grayscale[:,self.peak_cross[0]]
-                plt.plot(xs, 50 - (ys_x[self.peak_cross[0]-25:self.peak_cross[0]+25]/16),'y-', lw=2)
-                plt.plot(ys_y[self.peak_cross[1]-25:self.peak_cross[1]+25]/16, xs,'y-', lw=2)
-                   
+                norm_factor = np.max(ys_x)/(0.25*size)
+                plt.plot(xs, size - (ys_x[self.peak_cross[0]-(size/2):self.peak_cross[0]+(size/2)]/norm_factor),'y-', lw=2)
+                plt.plot(ys_y[self.peak_cross[1]-(size/2):self.peak_cross[1]+(size/2)]/norm_factor, xs,'y-', lw=2)
+                
+                try:
+                    popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys_x,p0=[250,self.peak_cross[0],20], maxfev=50)
+                    plt.plot(xs,size - output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-(size/2):self.peak_cross[0]+(size/2)]/norm_factor,'r-', lw=2)
+                except:
+                    print 'Problem! Could not fit x gaussian!'
+                    
+                try:
+                    popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys_y,p0=[250,self.peak_cross[1],20], maxfev=50)
+                    plt.plot(output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-(size/2):self.peak_cross[1]+(size/2)]/norm_factor,xs,'r-', lw=2)
+                except:
+                    print 'Problem! Could not fit y gaussian!'
+                    
                 plt.xlim(0, size)
                 plt.ylim(size, 0)
+                
+                if str(self.ellipse_angle) != 'nan':
+                    x_displace, y_displace = self.peak_cross[0]-(size/2), self.peak_cross[1]-(size/2)
+                    
+                    pts = self.analyse.get_ellipse_coords(a=self.ma, b=self.MA, x=self.ellipse_x, y=self.ellipse_y, angle=-self.ellipse_angle)
+                    plt.plot(pts[:,0] - (x_displace), pts[:,1] - (y_displace))
+                    
+                    MA_x, MA_y = self.ma*math.cos(self.ellipse_angle*(np.pi/180)), self.ma*math.sin(self.ellipse_angle*(np.pi/180))
+                    ma_x, ma_y = self.MA*math.sin(self.ellipse_angle*(np.pi/180)), self.MA*math.cos(self.ellipse_angle*(np.pi/180))
+                    MA_xtop, MA_ytop = int(self.ellipse_x + MA_x), int(self.ellipse_y + MA_y)
+                    MA_xbot, MA_ybot = int(self.ellipse_x - MA_x), int(self.ellipse_y - MA_y)
+                    ma_xtop, ma_ytop = int(self.ellipse_x + ma_x), int(self.ellipse_y + ma_y) #find corners of ellipse
+                    ma_xbot, ma_ybot = int(self.ellipse_x - ma_x), int(self.ellipse_y - ma_y)
+                    
+                    plt.plot([MA_xtop - (x_displace), MA_xbot - (x_displace)], [MA_ytop - (y_displace), MA_ybot - (y_displace)], 'w-', lw=2)
+                    plt.plot([ma_xtop - (x_displace), ma_xbot - (x_displace)], [ma_ybot - (y_displace), ma_ytop - (y_displace)], 'w:', lw=2)
+                    
         elif self.fig_type == '2d surface':
             ax = self.fig.add_subplot(1,1,1,projection='3d')
             z = np.asarray(grayscale)[100:250,250:400]
@@ -427,25 +459,6 @@ class Controller(tk.Frame):
                 plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
             plt.ylim(0,360)
             plt.plot([0,0],'w.'); plt.legend(frameon=False)
-        elif self.fig_type == 'ellipse fit':
-            if str(self.ellipse_angle) != 'nan':
-                pts = self.analyse.get_ellipse_coords(a=self.ma, b=self.MA, x=self.ellipse_x, y=self.ellipse_y, angle=-self.ellipse_angle)
-                plt.plot(pts[:,0], pts[:,1])
-                
-                MA_x, MA_y = self.ma*math.cos(self.ellipse_angle*(np.pi/180)), self.ma*math.sin(self.ellipse_angle*(np.pi/180))
-                ma_x, ma_y = self.MA*math.sin(self.ellipse_angle*(np.pi/180)), self.MA*math.cos(self.ellipse_angle*(np.pi/180))
-                MA_xtop, MA_ytop = int(self.ellipse_x + MA_x), int(self.ellipse_y + MA_y)
-                MA_xbot, MA_ybot = int(self.ellipse_x - MA_x), int(self.ellipse_y - MA_y)
-                ma_xtop, ma_ytop = int(self.ellipse_x + ma_x), int(self.ellipse_y + ma_y) #find corners of ellipse
-                ma_xbot, ma_ybot = int(self.ellipse_x - ma_x), int(self.ellipse_y - ma_y)
-                
-                plt.plot(MA_xtop, MA_ytop, 'ro')
-                plt.plot(MA_xbot, MA_ybot, 'bo')
-                plt.plot(ma_xtop, ma_ybot, 'rx')
-                plt.plot(ma_xbot, ma_ytop, 'bx')
-                
-                plt.xlim(0, self.width)
-                plt.ylim(self.height, 0)
         else:
             print 'fig type not found.', self.fig_type
             
@@ -523,7 +536,7 @@ class Controller(tk.Frame):
         '''Shows camera view with relevant labels and annotations included.'''
         _, frame = self.cap.read() #read camera input
         # frame = cv2.flip(frame, 1)
-        
+        # frame = np.asarray(Image.open("output1.png"))
         if self.roi != 1: #apply region of interest scaling
             size = self.width/self.roi, self.height/self.roi
             analysis_frame = frame[(self.height/2)-(size[1]/2):(self.height/2)+(size[1]/2), (self.width/2)-(size[0]/2):(self.width/2)+(size[0]/2)]
@@ -579,8 +592,8 @@ class Controller(tk.Frame):
                     self.centroid = centroid
                     
                     cross_size = 20
-                    cv2.line(cv2image, (centroid[0]-cross_size, centroid[1]), (centroid[0]+cross_size, centroid[1]), 255, thickness=1)
-                    cv2.line(cv2image, (centroid[0], centroid[1]+cross_size), (centroid[0], centroid[1]-cross_size), 255, thickness=1)
+                    cv2.line(cv2image, (int(centroid[0])-cross_size, int(centroid[1])), (int(centroid[0])+cross_size, int(centroid[1])), 255, thickness=1)
+                    cv2.line(cv2image, (int(centroid[0]), int(centroid[1])+cross_size), (int(centroid[0]), int(centroid[1])-cross_size), 255, thickness=1)
                     
                 else:
                     print 'Problem! Centroid out of image region.', centroid[0], centroid[1]

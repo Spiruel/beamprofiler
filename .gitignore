@@ -1,9 +1,10 @@
 *.py[cod]
 *.pyc
+*.avi
+*.png
+*.csv
 
 test.py
-output.avi
-output.csv
 
 Beam_Profiler.egg-info/
 build/

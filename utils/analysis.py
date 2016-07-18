@@ -11,10 +11,56 @@ from scipy import ndimage
 import copy
 
 from PIL import Image
+import threading
 
-class Analyse:
+class Analyse(threading.Thread):
     def __init__(self, master):
-        self.master = master
+        threading.Thread.__init__(self)
+        self.master = master       
+        
+    def get_centroid(self):
+        # function finds centroid of a white laserspot within a dark background
+        # using fourier algorithm in a two dimensional grayscale image
+        # Function translated from Matlab 
+        # Credit: Rainer F., knallkopf66@uboot.com, Dec. 2004
+        
+        img = np.matrix(self.master.analysis_frame)
+        rbnd, cbnd = img.shape
+
+        i = np.matrix(np.arange(0, rbnd))
+        sin_a = np.sin((i-1)*2*np.pi / (rbnd-1))
+        cos_a = np.cos((i-1)*2*np.pi / (rbnd-1))
+
+        j = np.matrix(np.arange(0, cbnd)).transpose()
+        sin_b = np.sin((j-1)*2*np.pi / (cbnd-1))
+        cos_b = np.cos((j-1)*2*np.pi / (cbnd-1))
+
+        a = (cos_a * img).sum()
+        b = (sin_a * img).sum()
+        c = (img * cos_b).sum()
+        d = (img * sin_b).sum()
+
+        if a>0:
+            if b>0:
+                rphi = 0
+            else:
+                rphi = 2*np.pi
+        else:
+            rphi = np.pi
+
+        if c>0:
+            if d>0:
+                cphi = 0
+            else:
+                cphi = 2*np.pi
+        else:
+            cphi = np.pi
+
+        x = (np.arctan(b/a) + rphi) * (rbnd - 1)/(2*np.pi) + 1
+        y = (np.arctan(d/c) + cphi) * (cbnd - 1)/(2*np.pi) + 1
+
+        com = (y, x)
+        return com
         
     def find_centroid(self):
         '''Takes greyscale cv2 image and finds one centroid position.'''
