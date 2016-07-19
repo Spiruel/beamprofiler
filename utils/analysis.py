@@ -56,6 +56,13 @@ class Analyse(threading.Thread):
         else:
             cphi = np.pi
 
+        try:
+            fract1 = b/a
+            frac2 = d/c
+        except RuntimeWarning:
+            print 'Could not find centroid!'
+            return (np.nan, np.nan)
+            
         x = (np.arctan(b/a) + rphi) * (rbnd - 1)/(2*np.pi) + 1
         y = (np.arctan(d/c) + cphi) * (cbnd - 1)/(2*np.pi) + 1
 

@@ -5,6 +5,7 @@ import Tkinter as tk
 import ttk
 import numpy as np
 import tkSimpleDialog, tkMessageBox
+import time
        
 class InfoFrame(tk.Frame):
     def __init__(self, parent):
@@ -236,6 +237,61 @@ class PassFailDialogue(tkSimpleDialog.Dialog):
                 "Illegal values, please input numbers to 2 d.p."
             )
             return 0
+        
+    def close(self):
+        self.destroy()
+
+class SystemLog():  
+    def __init__(self, parent):
+        self.parent = parent
+        self.window = tk.Toplevel(parent)
+        self.window.minsize(200,350)
+        
+        self.tex = tk.Text(master=self.window)
+        self.tex.config(state=tk.DISABLED)
+        self.tex.pack(side=tk.RIGHT)
+
+        self.callback() #show values on start
+        
+    def cbc(self, id, tex):
+        return lambda : self.callback(id, tex)
+
+    def callback(self):
+        self.tex.config(state=tk.NORMAL)
+        self.tex.delete('1.0', tk.END)
+        for error in self.parent.logs:
+            self.tex.insert(tk.END, error+'\n')
+        self.tex.see(tk.END)             # Scroll if necessary
+        self.tex.config(state=tk.DISABLED)
+        
+    def close(self):
+        self.window.destroy()
+        
+class ToolbarConfig(tkSimpleDialog.Dialog):
+    def __init__(self, master):
+        self.master = master
+        self.dummies1 = []
+        self.result = []
+        self.options = ['x Cross Profile', 'y Cross Profile', '2D Profile', '2D Surface',
+                  'Plot Positions', 'Plot Power', 'Plot Orientation', 'Beam Stability',
+                  'Increase exposure', 'Decrease exposure', 'View log', 'Basic Workspace', 'Close all windows']
+        tkSimpleDialog.Dialog.__init__(self, master)
+        
+    def body(self, master):
+        tk.Label(self, text='Select choices for Toolbar buttons').pack()
+        for i in self.options:
+            dummy1 = tk.IntVar()
+            if i in self.master.toolbaroptions:
+                dummy1.set(1)
+            else:
+                dummy1.set(0)
+            dummy2 = tk.Checkbutton(self, text=i, variable=dummy1).pack(side=tk.TOP, padx=2, pady=2)
+            self.dummies1.append(dummy1)
+            
+            #on OK add the dummies to self.master.toolbar frame
+        
+    def apply(self):
+        self.result = self.dummies1
         
     def close(self):
         self.destroy()

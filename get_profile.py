@@ -20,6 +20,7 @@ matplotlib.use('TkAgg')
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 from utils import analysis
 from utils import output
@@ -32,6 +33,10 @@ lmain = tk.Label(root)
 lmain.pack()
 
 class Config(tkSimpleDialog.Dialog):
+    def __init__(self, master):
+        self.master = master
+        tkSimpleDialog.Dialog.__init__(self, master)
+        
     def body(self, master):
         tk.Label(master, text="Plot refresh rate /s:").grid(row=0)
         tk.Label(master, text="Pixel size (µm):").grid(row=1)
@@ -61,10 +66,11 @@ class Config(tkSimpleDialog.Dialog):
         showvalue='yes', 
         orient='horizontal',
         command = c.change_exp)
+        self.expscale.set(self.master.exp)
         self.expscale.grid(row=4, columnspan=2, sticky=tk.W)
                 
         self.roiscale = tk.IntVar(master)
-        self.roiscale.set(1)
+        self.roiscale.set(self.master.roi)
         self.dropdown5 = tk.OptionMenu(master, self.roiscale, 1, 2, 4, 8, 16, command = c.set_roi)
         roitext = tk.Label(master, text="zoom factor")
         roitext.grid(row=5, columnspan=2, sticky=tk.W)
@@ -120,6 +126,20 @@ class Controller(tk.Frame):
         self.plot_time = self.last_pause  #various parameters ters used throughout the profiler are initialised here
         self.angle = 0
         self.roi = 1
+        self.exp = -8
+        self.logs = []
+        self.toolbaroptions = []
+        self.toolbarbuttons = []
+        self.toolbaractions = {'x cross profile': ['x cross profile', tk.PhotoImage(file='images/x_profile.gif')],
+                              'y cross profile': ['y cross profile', tk.PhotoImage(file='images/y_profile.gif')],
+                              '2d profile': ['2d profile', tk.PhotoImage(file='images/2d_profile.gif')],
+                              '2d surface': ['2d surface', tk.PhotoImage(file='images/3d_profile.gif')],
+                              'plot positions': ['positions', tk.PhotoImage(file='images/positions.gif')],
+                              'beam stability': ['beam stability', tk.PhotoImage(file='images/beam_stability.gif')],
+                              'plot orientation': ['orientation', tk.PhotoImage(file='images/orientation.gif')],
+                              'increase exposure': ['orientation', tk.PhotoImage(file='images/increase_exp.gif')],
+                              'decrease exposure': ['orientation', tk.PhotoImage(file='images/decrease_exp.gif')],
+                              'view log': ['orientation', tk.PhotoImage(file='images/log.gif')]}
         self.camera_index = 0
         self.beam_width, self.beam_diameter = None, None
         self.centroid = None
@@ -178,6 +198,8 @@ class Controller(tk.Frame):
         self.info_frame = None
         self.config_frame = None
         self.passfail_frame = None
+        self.systemlog_frame = None
+        self.toolbarconfig_frame = None
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
@@ -199,6 +221,7 @@ class Controller(tk.Frame):
         submenu.add_command(label="1", command= lambda: self.change_cam(1))
         submenu.add_command(label="2", command= lambda: self.change_cam(2))
         controlMenu.add_command(label="Edit Config", command=self.change_config)
+        controlMenu.add_command(label="View Log", command= self.view_log)
         controlMenu.add_cascade(label='Change Camera', menu=submenu, underline=0)
         controlMenu.add_separator()
         controlMenu.add_command(label="Clear Windows", command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message"))
@@ -246,17 +269,17 @@ class Controller(tk.Frame):
         ###################################################################NAVBAR
           
         # **** Tool Bar ****
-        toolbar = tk.Frame(self.parent)
+        self.toolbar = tk.Frame(self.parent)
         
         self.variable4 = tk.IntVar()
-        self.pb = tk.Checkbutton(toolbar, text="Profiler Active (<space>)", variable=self.variable4, command=self.profiler_active)
+        self.pb = tk.Checkbutton(self.toolbar, text="Profiler Active (<space>)", variable=self.variable4, command=self.profiler_active)
         self.pb.pack(side=tk.LEFT, padx=2, pady=2)
         
-        self.cog = tk.PhotoImage(file='cog.gif')
-        insertButt = tk.Button(toolbar, image=self.cog, text="Customise Toolbar")
-        insertButt.pack(side=tk.LEFT, padx=2, pady=2)
+        self.cog = tk.PhotoImage(file='images/cog.gif')
+        insertButt = tk.Button(self.toolbar, image=self.cog, text="Customise Toolbar", command=self.change_toolbar)
+        insertButt.pack(side=tk.LEFT, padx=(2, 20), pady=2)
         
-        toolbar.pack(side=tk.TOP, fill=tk.X)
+        self.toolbar.pack(side=tk.TOP, fill=tk.X)
         
         # **** Status Bar ****
         self.status = tk.StringVar()
@@ -350,7 +373,7 @@ class Controller(tk.Frame):
                     popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys,p0=[250,self.peak_cross[0],20], maxfev=50)
                     plt.plot(xs,output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-20:self.peak_cross[0]+20],'r-')
                 except:
-                    print 'Problem! Could not fit x gaussian!'
+                    self.log('Problem! Could not fit x gaussian!')
                 
                 # plt.xlim(0,self.width)
                 plt.ylim(0,255)
@@ -363,7 +386,7 @@ class Controller(tk.Frame):
                     popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys,p0=[250,self.peak_cross[1],20], maxfev=50)
                     plt.plot(xs,output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-20:self.peak_cross[1]+20],'r-')
                 except:
-                    print 'Problem! Could not fit y gaussian!'
+                    self.log('Problem! Could not fit x gaussian!')
                 
                 # plt.xlim(0,self.height)
                 plt.ylim(0,255)
@@ -396,16 +419,13 @@ class Controller(tk.Frame):
                     popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys_x,p0=[250,self.peak_cross[0],20], maxfev=50)
                     plt.plot(xs,size - output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-(size/2):self.peak_cross[0]+(size/2)]/norm_factor,'r-', lw=2)
                 except:
-                    print 'Problem! Could not fit x gaussian!'
+                    self.log('Problem! Could not fit x gaussian!')
                     
                 try:
                     popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys_y,p0=[250,self.peak_cross[1],20], maxfev=50)
                     plt.plot(output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-(size/2):self.peak_cross[1]+(size/2)]/norm_factor,xs,'r-', lw=2)
                 except:
-                    print 'Problem! Could not fit y gaussian!'
-                    
-                plt.xlim(0, size)
-                plt.ylim(size, 0)
+                    self.log('Problem! Could not fit y gaussian!')
                 
                 if str(self.ellipse_angle) != 'nan':
                     x_displace, y_displace = self.peak_cross[0]-(size/2), self.peak_cross[1]-(size/2)
@@ -423,6 +443,24 @@ class Controller(tk.Frame):
                     plt.plot([MA_xtop - (x_displace), MA_xbot - (x_displace)], [MA_ytop - (y_displace), MA_ybot - (y_displace)], 'w-', lw=2)
                     plt.plot([ma_xtop - (x_displace), ma_xbot - (x_displace)], [ma_ybot - (y_displace), ma_ytop - (y_displace)], 'w:', lw=2)
                     
+                plt.xlim(0, size)
+                plt.ylim(size, 0)
+                
+                # majorLocator = MultipleLocator(10)
+                # majorFormatter = FormatStrFormatter('%d')
+                # minorLocator = MultipleLocator(1)
+
+                # ax = plt.gca()
+                # ax.xaxis.set_major_locator(majorLocator)
+                # ax.xaxis.set_major_formatter(majorFormatter)
+
+                # # for the minor ticks, use no labels; default NullFormatter
+                # ax.xaxis.set_minor_locator(minorLocator)
+                # ax.yaxis.set_minor_locator(minorLocator)
+                
+                # ax.tick_params(which='both', width=1.5, color='w')
+                # ax.tick_params(which='major', length=8)
+                # ax.tick_params(which='minor', length=4)
         elif self.fig_type == '2d surface':
             ax = self.fig.add_subplot(1,1,1,projection='3d')
             z = np.asarray(grayscale)[100:250,250:400]
@@ -472,7 +510,7 @@ class Controller(tk.Frame):
     def change_fig(self, option):
         '''Changes the fig used.'''
         if self.fig_type != option:
-            print 'changed fig', option
+            self.log('Changed fig ' + option)
             self.fig_type = option
             plt.cla()
             plt.clf()
@@ -482,7 +520,7 @@ class Controller(tk.Frame):
         '''Changes the style sheet used in the plot'''
         print self.style_sheet, option
         if self.style_sheet != option:
-            print 'changed style sheet', option
+            self.log('Changed style sheet ' + option)
             self.style_sheet = option
             plt.style.use(option)
             plt.cla()
@@ -491,14 +529,14 @@ class Controller(tk.Frame):
             
     def change_exp(self, option):
         '''Changes the exposure time of the camera.'''
-        exp = float(option)
-        print 'changing exp to', exp
-        self.cap.set(15, exp)
+        self.exp = float(option)
+        self.log('Changing exposure to ' + str(self.exp))
+        self.cap.set(15, self.exp)
         
     def change_gain(self, option):
         '''Changes the gain of the camera.'''
         gain = float(option)
-        print 'changing gain to', gain
+        self.log('Changing gain to ' + str(gain))
         self.cap.set(14, gain)
 
     def init_camera(self):
@@ -522,7 +560,7 @@ class Controller(tk.Frame):
     def change_colourmap(self, option):
         '''Changes the colourmap used in the camera feed.'''
         if self.colourmap != option:
-            print 'changed colourmap to ', option
+            self.log('changed colourmap to ' + option)
             if option.lower() == 'jet':
                 self.colourmap = cv2.COLORMAP_JET
             elif option.lower() == 'autumn':
@@ -536,7 +574,7 @@ class Controller(tk.Frame):
         '''Shows camera view with relevant labels and annotations included.'''
         _, frame = self.cap.read() #read camera input
         # frame = cv2.flip(frame, 1)
-        # frame = np.asarray(Image.open("output1.png"))
+        # frame = np.asarray(Image.open("output.png"))
         if self.roi != 1: #apply region of interest scaling
             size = self.width/self.roi, self.height/self.roi
             analysis_frame = frame[(self.height/2)-(size[1]/2):(self.height/2)+(size[1]/2), (self.width/2)-(size[0]/2):(self.width/2)+(size[0]/2)]
@@ -563,7 +601,7 @@ class Controller(tk.Frame):
             # convert to greyscale
             # tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY) #this should be analysis frame soon
 
-            centroid = self.analyse.find_centroid()
+            centroid = self.analyse.get_centroid()
 
             if centroid != (np.nan, np.nan):
             
@@ -596,7 +634,7 @@ class Controller(tk.Frame):
                     cv2.line(cv2image, (int(centroid[0]), int(centroid[1])+cross_size), (int(centroid[0]), int(centroid[1])-cross_size), 255, thickness=1)
                     
                 else:
-                    print 'Problem! Centroid out of image region.', centroid[0], centroid[1]
+                    self.log('Problem! Centroid out of image region. ' + str(centroid[0]) + ' ' + str(centroid[1]))
                     self.centroid = None
             else:
                 self.centroid = None
@@ -649,11 +687,12 @@ class Controller(tk.Frame):
             
     def set_angle(self, option):
         '''Sets the rotation angle.'''
+        self.log('Changed angle to ' + str(option))
         self.angle = float(option)
         
     def set_roi(self, option):
         '''Sets the region of interest size'''
-        print 'changed roi to', option
+        self.log('Changed roi to ' + str(option))
         self.roi = int(option)
         
     def profiler_active(self, option=False):
@@ -670,12 +709,12 @@ class Controller(tk.Frame):
                 box = False
                 
         if box and not self.active:
-            print 'Profiler ACTIVE'
+            self.log('Profiler ACTIVE')
             self.pause_delay += time.time()-self.last_pause
             self.active = True
             self.pb.select()
         elif not box and self.active:
-            print 'Profiler INACTIVE'
+            self.log('Profiler INACTIVE')
             self.last_pause = time.time()
             self.active = False
             self.pb.deselect()
@@ -709,47 +748,17 @@ class Controller(tk.Frame):
        
     def save_screenshot(self):
         cv2.imwrite('output.png', self.img)
+        self.log('Written output.png to disk.')
         
     def save_video(self, wait):
+        self.log('Writing video to disk, of length ' + str(wait) + ' seconds.')
+        video  = cv2.VideoWriter('output.avi', -1, 25, (self.width, self.height));
         start = time.time()
-        # zeros array
-        fourcc = cv2.VideoWriter_fourcc(*"MJPG")
-        writer = None
-        (h, w) = (None, None)
-        zeros = None
-        # loop over frames from the video stream
-        while wait > time.time() - start:
-            # grab the frame from the video stream and resize it to have a
-            # maximum width of 300 pixels
-            _, frame = self.cap.read()
-            # check if the writer is None
-            if writer is None:
-                # store the image dimensions, initialzie the video writer,
-                # and construct the zeros array
-                (h, w) = (self.height, self.width)
-                writer = cv2.VideoWriter("output.avi", fourcc, 30,
-                    (w * 2, h * 2), True)
-                zeros = np.zeros((h, w), dtype="uint8")
-        
-                # break the image into its RGB components, then construct the
-                # RGB representation of each frame individually
-                B, G, R = cv2.split(frame)
-                R = cv2.merge([zeros, zeros, R])
-                G = cv2.merge([zeros, G, zeros])
-                B = cv2.merge([B, zeros, zeros])
-             
-                # construct the final output frame, storing the original frame
-                # at the top-left, the red channel in the top-right, the green
-                # channel in the bottom-right, and the blue channel in the
-                # bottom-left
-                output = np.zeros((h * 2, w * 2, 3), dtype="uint8")
-                output[0:h, 0:w] = frame
-                output[0:h, w:w * 2] = R
-                output[h:h * 2, w:w * 2] = G
-                output[h:h * 2, 0:w] = B
-             
-                # write the output frame to file
-                writer.write(output)
+        while time.time() - start < wait:
+           f,img = self.cap.read()
+           video.write(img)
+        self.log('Video capture completed successfully.')
+        video.release()  
             
     def save_csv(self):
         '''Saves .csv file of recorded data in columns.'''
@@ -779,6 +788,34 @@ class Controller(tk.Frame):
             if angle is not None:
                 self.angle = angle
                 
+    def view_log(self):
+        '''Opens System Log'''
+        if self.systemlog_frame != None:
+            self.systemlog_frame.close()
+        self.systemlog_frame = interface.SystemLog(self)
+            
+    def change_toolbar(self):
+        '''Opens Toolbar Settings'''
+        if self.toolbarconfig_frame != None:
+            self.toolbarconfig_frame.close()
+        self.toolbarconfig_frame = interface.ToolbarConfig(self)
+        if self.toolbarconfig_frame.result is not None:
+            self.toolbaroptions = [self.toolbarconfig_frame.options[i] for i,j in enumerate(self.toolbarconfig_frame.result) if j.get() == 1]
+            removedbuttons = [obj for obj in self.toolbarbuttons if obj[1] not in self.toolbaroptions]
+            for button in removedbuttons:
+                button[0].destroy()
+                self.toolbarbuttons.remove(button)
+            newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
+            for button in newbuttons:
+                if button.lower() in self.toolbaractions.keys():
+                    if self.toolbaractions[button.lower()][1] is not None:
+                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
+                    else:
+                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1]), button])
+                else:
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button), button])
+                self.toolbarbuttons[-1][0].pack(side=tk.LEFT, padx=2, pady=2)
+        
     def pass_fail_testing(self):
         '''Sets off alarm if pass/fail test criteria are not met.'''
         for index in np.where(np.array(self.raw_passfail) == 'True')[0]:
@@ -844,7 +881,15 @@ class Controller(tk.Frame):
         '''Makes a sound and shows alert window'''
         print '\a'
         self.info_window(title, text)
+        self.log(text)
         # tkMessageBox.showerror(title, text)
+        
+    def log(self, text):
+        print text
+        timestamp = time.strftime("%H:%M:%S", time.localtime())
+        self.logs.append(timestamp + ' ' + text)
+        if self.systemlog_frame != None:
+            self.systemlog_frame.callback() #refresh log window with new info
         
     def toggle_graph(self, option):
         if self.graphs[option]:
