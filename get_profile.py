@@ -3,7 +3,7 @@
           
 import Tkinter as tk
 import ttk
-import tkSimpleDialog, tkFileDialog, tkMessageBox
+import tkFileDialog, tkMessageBox
 
 import cv2
 from PIL import Image, ImageTk
@@ -31,106 +31,20 @@ import threading
 root = tk.Tk()
 lmain = tk.Label(root)
 lmain.pack()
-
-class Config(tkSimpleDialog.Dialog):
-    def __init__(self, master):
-        self.master = master
-        tkSimpleDialog.Dialog.__init__(self, master)
-        
-    def body(self, master):
-        tk.Label(master, text="Plot refresh rate /s:").grid(row=0)
-        tk.Label(master, text="Pixel size (µm):").grid(row=1)
-        tk.Label(master, text="Angle (deg):").grid(row=2)
-
-        self.e1 = tk.Entry(master)
-        self.e2 = tk.Entry(master)
-        self.e3 = tk.Entry(master)
-        
-        self.e1.delete(0, tk.END)
-        self.e1.insert(0, str(c.plot_tick))
-        self.e2.delete(0, tk.END)
-        self.e2.insert(0, str(c.pixel_scale))
-        self.e3.delete(0, tk.END)
-        self.e3.insert(0, str(c.angle))
-
-        self.e1.grid(row=0, column=1)
-        self.e2.grid(row=1, column=1)
-        self.e3.grid(row=2, column=1)
-        
-        self.rb = tk.Button(master, text="Reset to default", command=self.reset_values)
-        self.rb.grid(row=3, columnspan=2)
-        
-        self.expscale = tk.Scale(master, label='exposure',
-        from_=-15, to=-8,
-        length=300, tickinterval=1,
-        showvalue='yes', 
-        orient='horizontal',
-        command = c.change_exp)
-        self.expscale.set(self.master.exp)
-        self.expscale.grid(row=4, columnspan=2, sticky=tk.W)
-                
-        self.roiscale = tk.IntVar(master)
-        self.roiscale.set(self.master.roi)
-        self.dropdown5 = tk.OptionMenu(master, self.roiscale, 1, 2, 4, 8, 16, command = c.set_roi)
-        roitext = tk.Label(master, text="zoom factor")
-        roitext.grid(row=5, columnspan=2, sticky=tk.W)
-        self.dropdown5.grid(row=6, columnspan=2, sticky=tk.W)
-        
-        return self.e1 # initial focus
-        
-    def validate(self):
-        try:
-            plot_tick = self.e1.get()
-            if plot_tick == 0: 
-                raise ValueError
-            pixel_scale = self.e2.get()
-            if plot_tick == '':
-                plot_tick = None
-            else:
-                plot_tick = float(plot_tick)
-            if pixel_scale == '':
-                pixel_scale = None
-            else:
-                pixel_scale = float(pixel_scale)
-            angle = self.e3.get()
-            if angle == '':
-                angle = None
-            else:
-                angle = float(angle)
-            self.result = plot_tick, pixel_scale, angle
-            return 1
-        except ValueError:
-            tkMessageBox.showwarning(
-                "Bad input",
-                "Illegal values, please try again"
-            )
-            return 0
-        
-    def reset_values(self):
-        self.e1.delete(0, tk.END)
-        self.e1.insert(0, '0.1')
-        self.e2.delete(0, tk.END)
-        self.e2.insert(0, '2.8')
-        self.e3.delete(0, tk.END)
-        self.e3.insert(0, '0.0')
-        
-    def close(self):
-        self.destroy()
-              
+             
 class Controller(tk.Frame):
     def __init__(self, parent=root):
         '''Initialises basic variables and GUI elements.'''
-        self.active = False
+        self.active = False #whether profiler is active or just looking at webcam view
         self.pause_delay = 0 #time delay for when profiler is inactive. cumulatively adds.
         self.last_pause = time.time() #last time profiler was inactive
         self.plot_time = self.last_pause  #various parameters ters used throughout the profiler are initialised here
-        self.angle = 0
+        self.angle = 0.0 #setting initial angles, region of interest, exposure time etc
         self.roi = 1
         self.exp = -8
-        self.logs = []
-        self.toolbaroptions = []
-        self.toolbarbuttons = []
-        self.toolbaractions = {'x cross profile': ['x cross profile', tk.PhotoImage(file='images/x_profile.gif')],
+        self.logs = [] #system logs
+        self.toolbarbuttons = [] #active buttons on the toolbar
+        self.toolbaractions = {'x cross profile': ['x cross profile', tk.PhotoImage(file='images/x_profile.gif')], #accessible images for toolbarbuttons
                               'y cross profile': ['y cross profile', tk.PhotoImage(file='images/y_profile.gif')],
                               '2d profile': ['2d profile', tk.PhotoImage(file='images/2d_profile.gif')],
                               '2d surface': ['2d surface', tk.PhotoImage(file='images/3d_profile.gif')],
@@ -144,6 +58,7 @@ class Controller(tk.Frame):
         self.beam_width, self.beam_diameter = None, None
         self.centroid = None
         self.peak_cross = None
+        self.power = np.nan
         self.colourmap = None
         self.fig_type = 'x cross profile'
         self.style_sheet = 'default'
@@ -200,10 +115,23 @@ class Controller(tk.Frame):
         self.passfail_frame = None
         self.systemlog_frame = None
         self.toolbarconfig_frame = None
+        
+        self.bg_subtract = 0
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
         self.var = tk.IntVar()
+        
+        self.statusbar = tk.Frame(self.parent)
+        self.progress = interface.Progress(self)
+        
+        # **** Status Bar ****
+        self.status = tk.StringVar()
+        status_string = "Profiler: " + str(TrueFalse(self.active)) + " | " + "Centroid: " + str(TrueFalse(self.centroid)) + " | Ellipse: " + str(TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(TrueFalse(self.peak_cross))
+        self.status.set(status_string)
+        status_label = tk.Label(self.statusbar, textvariable=self.status, width = 65, pady = 5, anchor=tk.W)
+        status_label.pack(side=tk.BOTTOM, fill=tk.X)
+        self.statusbar.pack(side=tk.BOTTOM, fill=tk.X)
 
         self.parent.title('Laser Beam Profiler')
         
@@ -221,6 +149,7 @@ class Controller(tk.Frame):
         submenu.add_command(label="1", command= lambda: self.change_cam(1))
         submenu.add_command(label="2", command= lambda: self.change_cam(2))
         controlMenu.add_command(label="Edit Config", command=self.change_config)
+        controlMenu.add_command(label="Calibrate background subtraction", command=self.progress.calibrate_bg)
         controlMenu.add_command(label="View Log", command= self.view_log)
         controlMenu.add_cascade(label='Change Camera', menu=submenu, underline=0)
         controlMenu.add_separator()
@@ -280,21 +209,14 @@ class Controller(tk.Frame):
         insertButt.pack(side=tk.LEFT, padx=(2, 20), pady=2)
         
         self.toolbar.pack(side=tk.TOP, fill=tk.X)
-        
-        # **** Status Bar ****
-        self.status = tk.StringVar()
-        status_string = "Profiler: " + str(TrueFalse(self.active)) + " | " + "Centroid: " + str(TrueFalse(self.centroid)) + " | Ellipse: " + str(TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(TrueFalse(self.peak_cross))
-        self.status.set(status_string)
-        status_label = tk.Label(self.parent, textvariable=self.status, width = 65, pady = 5, anchor=tk.W)
-        status_label.pack(side=tk.BOTTOM, fill=tk.X)
        
         labelframe = tk.Frame(self) #left hand frame for various sliders and tweakables for direct control
         labelframe.pack(side=tk.LEFT) #.grid(row=0, column=0) 
                
-        self.variable3 = tk.StringVar(labelframe)
-        self.variable3.set("x cross profile")
-        self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "x cross profile", "y cross profile", "2d profile","2d surface", "beam stability", "positions", "orientation", command = self.change_fig)
-        self.dropdown3.pack()
+        # self.variable3 = tk.StringVar(labelframe)
+        # self.variable3.set("x cross profile")
+        # self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "x cross profile", "y cross profile", "2d profile","2d surface", "beam stability", "positions", "orientation", command = self.change_fig)
+        # self.dropdown3.pack()
               
         # self.scale2 = tk.Scale(labelframe, label='ROI',
             # from_=1, to=50,
@@ -338,7 +260,10 @@ class Controller(tk.Frame):
         
         b = tk.Button(labelframe, text="Sound", command=lambda: output.WavePlayerLoop(freq=440.*(self.peak_cross[0]/640.), length=10., volume=0.5).start())
         b.pack(fill=tk.BOTH)
-
+        
+        self.toolbaroptions = ['x Cross Profile', 'y Cross Profile'] #initial choices for active buttons on toolbar
+        self.update_toolbar()
+        
         self.make_fig() #make figure environment
         self.init_camera() #initialise camera
         self.show_frame() #show video feed and update view with new information and refreshed plot etc
@@ -573,6 +498,17 @@ class Controller(tk.Frame):
     def show_frame(self):
         '''Shows camera view with relevant labels and annotations included.'''
         _, frame = self.cap.read() #read camera input
+        
+        # if self.bg_subtract > 0:
+            # if self.bg_subtract == 1:
+                # self.bg_frame = frame
+            # else:
+                # self.bg_frame += frame
+            # if self.bg_subtract == 64:
+                # frame = self.bg_frame/64
+            # self.bg_subtract += 1
+            # self.progress.step()
+            
         # frame = cv2.flip(frame, 1)
         # frame = np.asarray(Image.open("output.png"))
         if self.roi != 1: #apply region of interest scaling
@@ -590,39 +526,30 @@ class Controller(tk.Frame):
         if self.angle != 0: #apply rotation
             cv2image = self.rotate_image(cv2image)
         
-        # dim = np.shape(cv2image)
+        self.analysis_frame = cv2.cvtColor(analysis_frame,cv2.COLOR_BGR2GRAY) # convert to greyscale
         
-        self.analysis_frame = cv2.cvtColor(analysis_frame,cv2.COLOR_BGR2GRAY)
-        
-        cv2.line(cv2image, (50, 50), (50+28*2, 50), 255, thickness=4)
-        cv2.putText(cv2image, str(round(((28*2*self.pixel_scale)/self.roi),2)) + ' um', (47, 45), cv2.FONT_HERSHEY_PLAIN, .8, (255,255,255))
+        # cv2.line(cv2image, (50, 50), (50+28*2, 50), 255, thickness=4)
+        # cv2.putText(cv2image, str(round(((28*2*self.pixel_scale)/self.roi),2)) + ' um', (47, 45), cv2.FONT_HERSHEY_PLAIN, .8, (255,255,255))
         
         if self.active:
-            # convert to greyscale
-            # tracking = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY) #this should be analysis frame soon
 
+            peak_cross = self.analyse.find_peak()
+            self.peak_cross = peak_cross
+            cross_size = 10
+            cv2.line(cv2image, (int(peak_cross[0])-cross_size, int(peak_cross[1])), (int(peak_cross[0])+cross_size, int(peak_cross[1])), 255, thickness=1)
+            cv2.line(cv2image, (int(peak_cross[0]), int(peak_cross[1])+cross_size), (int(peak_cross[0]), int(peak_cross[1])-cross_size), 255, thickness=1)
+                    
             centroid = self.analyse.get_centroid()
-
             if centroid != (np.nan, np.nan):
-            
-                #if centroid then peak cross can be calculated quickly
-                i,j = self.analyse.get_max(alpha=10, size=10) #make sure not too intensive
-                if len(i) != 0 and len(j) != 0:
-                    peak_cross = (sum(i) / len(i), sum(j) / len(j)) #chooses the average point for the time being!!
-                    self.peak_cross = peak_cross
-                else:
-                    peak_cross = (np.nan, np.nan)
-                    self.peak_cross = None
-                 
-                #less intensive to calculate on the cropped frame.
-                # cv2.putText(cv2image,'Average Power: ' + str(round(np.mean(analysis_frame),2)), (10,255), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0)) #NEEDS WAY MORE WORK
-                # cv2.putText(cv2image,'Total Power: ' + str(round(np.sum(analysis_frame),2)), (10,270), cv2.FONT_HERSHEY_PLAIN, 1, (255,0,0)) #masking, thresholding, correct units required
-                
-                # cv2.putText(cv2image,'Min Value: ' + str(np.min(analysis_frame)), (10,340), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
-                
-                # if peak_cross != (np.nan, np.nan):
-                    # cv2.putText(cv2image,'Max Value: ' + str(np.max(analysis_frame)) + ' at (' + str(int(peak_cross[0]))+ ', ' + str(int(peak_cross[1])) + ')', (10,325), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
-                    # cv2.circle(cv2image,(int(peak_cross[0]), int(peak_cross[1])),10,255,thickness=3)
+
+                # #if centroid then peak cross can be calculated quickly
+                # # i,j = self.analyse.get_max(alpha=10, size=10) #make sure not too intensive
+                # if len(i) != 0 and len(j) != 0:
+                    # peak_cross = (sum(i) / len(i), sum(j) / len(j)) #chooses the average point for the time being!!
+                    # self.peak_cross = peak_cross
+                # else:
+                    # peak_cross = (np.nan, np.nan)
+                    # self.peak_cross = None
                 
                 if centroid[0] < self.width or centroid[1] < self.height: #ensure centroid lies within correct regions
                     # cv2.circle(cv2image,centroid,10,255,thickness=10)
@@ -638,8 +565,8 @@ class Controller(tk.Frame):
                     self.centroid = None
             else:
                 self.centroid = None
-                peak_cross = (np.nan, np.nan)
-                self.peak_cross = None
+                # peak_cross = (np.nan, np.nan)
+                # self.peak_cross = None
         
             ellipses = self.analyse.find_ellipses() #fit ellipse and print data to screen
             if ellipses != None:
@@ -778,13 +705,18 @@ class Controller(tk.Frame):
         '''Opens configuration window'''
         if self.config_frame != None:
             self.config_frame.close()
-        self.config_frame = Config(self)
+        self.config_frame = interface.Config(self)
         if self.config_frame.result is not None:
-            plot_tick, pixel_scale, angle = self.config_frame.result
+            plot_tick, pixel_scale, power, angle = self.config_frame.result
             if plot_tick is not None:
                 self.plot_tick = plot_tick
             if pixel_scale is not None:
                 self.pixel_scale = pixel_scale
+            if power is not None:
+                if power == '-':
+                    self.power = np.nan
+                else:
+                    self.power = power
             if angle is not None:
                 self.angle = angle
                 
@@ -799,22 +731,28 @@ class Controller(tk.Frame):
         if self.toolbarconfig_frame != None:
             self.toolbarconfig_frame.close()
         self.toolbarconfig_frame = interface.ToolbarConfig(self)
+
+        #now remove the buttons that have been unchecked in the config
         if self.toolbarconfig_frame.result is not None:
             self.toolbaroptions = [self.toolbarconfig_frame.options[i] for i,j in enumerate(self.toolbarconfig_frame.result) if j.get() == 1]
             removedbuttons = [obj for obj in self.toolbarbuttons if obj[1] not in self.toolbaroptions]
             for button in removedbuttons:
                 button[0].destroy()
                 self.toolbarbuttons.remove(button)
-            newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
-            for button in newbuttons:
-                if button.lower() in self.toolbaractions.keys():
-                    if self.toolbaractions[button.lower()][1] is not None:
-                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
-                    else:
-                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1]), button])
+        self.update_toolbar() #now add buttons that have been requested
+                
+    def update_toolbar(self):
+        '''Adds buttons to the toolbar that have been chosen'''
+        newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
+        for button in newbuttons:
+            if button.lower() in self.toolbaractions.keys():
+                if self.toolbaractions[button.lower()][1] is not None:
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
                 else:
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button), button])
-                self.toolbarbuttons[-1][0].pack(side=tk.LEFT, padx=2, pady=2)
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1]), button])
+            else:
+                self.toolbarbuttons.append([tk.Button(self.toolbar, text=button), button])
+            self.toolbarbuttons[-1][0].pack(side=tk.LEFT, padx=2, pady=2)
         
     def pass_fail_testing(self):
         '''Sets off alarm if pass/fail test criteria are not met.'''
@@ -900,11 +838,15 @@ class Controller(tk.Frame):
             'Error. Something went wrong.'
         self.refresh_plot()
         
+    def set_control(self, control):
+        '''Sets a reference in self to the main control instance. Is this bad programming? It makes things work...'''
+        self.control = control
+        
 def on_closing():
         '''Closes the GUI.'''
         root.quit()
         root.destroy()
-        c.cap.release()
+        control.cap.release()
         cv2.destroyAllWindows()
         
 def TrueFalse(x):
@@ -913,8 +855,9 @@ def TrueFalse(x):
     else:
         return 'INACTIVE'
         
-c = Controller(root)
-c.pack()
-root.bind('<space>', lambda e: c.profiler_active(option=True))
+control = Controller(root)
+control.pack()
+control.set_control(control)
+root.bind('<space>', lambda e: control.profiler_active(option=True))
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()

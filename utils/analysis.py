@@ -1,18 +1,19 @@
 import cv2
 import numpy as np
 
-import scipy.optimize as opt
-
 import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.patches import Circle
+
+import scipy.optimize as opt
 from scipy import ndimage
+from scipy.ndimage.filters import gaussian_filter
 
 import copy
 
 from PIL import Image
 import threading
-
+        
 class Analyse(threading.Thread):
     def __init__(self, master):
         threading.Thread.__init__(self)
@@ -217,6 +218,14 @@ class Analyse(threading.Thread):
                 break
         return i_out,j_out
         
+    def find_peak(self):
+        # apply a Gaussian blur to the image then find the brightest
+        # region
+        img = gaussian_filter(self.master.analysis_frame, 10, mode='constant')
+        gray = cv2.GaussianBlur(img, (5,5), 0)
+        (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(gray)
+        return maxLoc
+
     def get_ellipse_coords(self, a=0.0, b=0.0, x=0.0, y=0.0, angle=0.0, k=2):
         """ Draws an ellipse using (360*k + 1) discrete points; based on pseudo code
         given at http://en.wikipedia.org/wiki/Ellipse
