@@ -254,7 +254,7 @@ class Analyse(threading.Thread):
         return pts
         
     def get_beam_width(self, centroid):
-        image = np.array(Image.fromarray(self.master.analysis_frame).convert('L')) #should be passed in grayscale as analysis frame. need to fix
+        image = self.master.analysis_frame
         height, width = image.shape[0:2]
         
         if centroid is None: 

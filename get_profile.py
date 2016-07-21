@@ -1,6 +1,8 @@
 #!/usr/bin/python
 # -*- coding: latin-1 -*-
           
+import ConfigParser
+
 import Tkinter as tk
 import ttk
 import tkFileDialog, tkMessageBox
@@ -41,7 +43,7 @@ class Controller(tk.Frame):
         self.plot_time = self.last_pause  #various parameters ters used throughout the profiler are initialised here
         self.angle = 0.0 #setting initial angles, region of interest, exposure time etc
         self.roi = 1
-        self.exp = -8
+        self.exp = -1
         self.logs = [] #system logs
         self.toolbarbuttons = [] #active buttons on the toolbar
         self.toolbaractions = {'x cross profile': ['x cross profile', tk.PhotoImage(file='images/x_profile.gif')], #accessible images for toolbarbuttons
@@ -51,9 +53,11 @@ class Controller(tk.Frame):
                               'plot positions': ['positions', tk.PhotoImage(file='images/positions.gif')],
                               'beam stability': ['beam stability', tk.PhotoImage(file='images/beam_stability.gif')],
                               'plot orientation': ['orientation', tk.PhotoImage(file='images/orientation.gif')],
-                              'increase exposure': ['orientation', tk.PhotoImage(file='images/increase_exp.gif')],
-                              'decrease exposure': ['orientation', tk.PhotoImage(file='images/decrease_exp.gif')],
-                              'view log': ['orientation', tk.PhotoImage(file='images/log.gif')]}
+                              'increase exposure': ['inc_exp', tk.PhotoImage(file='images/increase_exp.gif')],
+                              'decrease exposure': ['dec_exp', tk.PhotoImage(file='images/decrease_exp.gif')],
+                              'view log': ['view_log', tk.PhotoImage(file='images/log.gif')],
+                               'clear windows': ['clear windows', tk.PhotoImage(file='images/clear_windows.gif')]
+                               }
         self.camera_index = 0
         self.beam_width, self.beam_diameter = None, None
         self.centroid = None
@@ -77,7 +81,7 @@ class Controller(tk.Frame):
         self.ellipticity, self.eccentricity = None, None
         self.tick_counter = 0
         self.plot_tick = 0.1 #refresh rate of plots in sec
-        self.pixel_scale = 2.8 #default pixel scale of webcam in um
+        self.pixel_scale = 5.6 #default pixel scale of webcam in um
         
         self.analysis_frame = None
         self.analyse = analysis.Analyse(self) #creates instance for analysis routines
@@ -116,7 +120,7 @@ class Controller(tk.Frame):
         self.systemlog_frame = None
         self.toolbarconfig_frame = None
         
-        self.bg_subtract = 0
+        self.bg_frame = 0
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
@@ -125,6 +129,8 @@ class Controller(tk.Frame):
         self.statusbar = tk.Frame(self.parent)
         self.progress = interface.Progress(self)
         
+        self.set_config() #overwrite prev init values with new config
+
         # **** Status Bar ****
         self.status = tk.StringVar()
         status_string = "Profiler: " + str(TrueFalse(self.active)) + " | " + "Centroid: " + str(TrueFalse(self.centroid)) + " | Ellipse: " + str(TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(TrueFalse(self.peak_cross))
@@ -498,25 +504,19 @@ class Controller(tk.Frame):
     def show_frame(self):
         '''Shows camera view with relevant labels and annotations included.'''
         _, frame = self.cap.read() #read camera input
-        
-        # if self.bg_subtract > 0:
-            # if self.bg_subtract == 1:
-                # self.bg_frame = frame
-            # else:
-                # self.bg_frame += frame
-            # if self.bg_subtract == 64:
-                # frame = self.bg_frame/64
-            # self.bg_subtract += 1
-            # self.progress.step()
-            
-        # frame = cv2.flip(frame, 1)
+
+        self.frame = frame
+        frame = frame - self.bg_frame
+
         # frame = np.asarray(Image.open("output.png"))
+        # frame = cv2.flip(frame, 1)
         if self.roi != 1: #apply region of interest scaling
             size = self.width/self.roi, self.height/self.roi
             analysis_frame = frame[(self.height/2)-(size[1]/2):(self.height/2)+(size[1]/2), (self.width/2)-(size[0]/2):(self.width/2)+(size[0]/2)]
             frame = cv2.resize(analysis_frame,None,fx=self.width/size[0], fy=self.height/size[1], interpolation = cv2.INTER_CUBIC)
         else:
             analysis_frame = frame
+            frame = cv2.resize(frame,None,fx=640./float(self.width), fy=360./float(self.height), interpolation = cv2.INTER_CUBIC)
             
         if self.colourmap is None: #apply colourmap change
             cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
@@ -536,8 +536,9 @@ class Controller(tk.Frame):
             peak_cross = self.analyse.find_peak()
             self.peak_cross = peak_cross
             cross_size = 10
-            cv2.line(cv2image, (int(peak_cross[0])-cross_size, int(peak_cross[1])), (int(peak_cross[0])+cross_size, int(peak_cross[1])), 255, thickness=1)
-            cv2.line(cv2image, (int(peak_cross[0]), int(peak_cross[1])+cross_size), (int(peak_cross[0]), int(peak_cross[1])-cross_size), 255, thickness=1)
+            screen_peak_cross = peak_cross[0]*(self.width/640), peak_cross[1]*(self.height/360)
+            cv2.line(cv2image, (int(screen_peak_cross[0])-cross_size, int(screen_peak_cross[1])), (int(screen_peak_cross[0])+cross_size, int(screen_peak_cross[1])), 255, thickness=1)
+            cv2.line(cv2image, (int(screen_peak_cross[0]), int(screen_peak_cross[1])+cross_size), (int(screen_peak_cross[0]), int(screen_peak_cross[1])-cross_size), 255, thickness=1)
                     
             centroid = self.analyse.get_centroid()
             if centroid != (np.nan, np.nan):
@@ -746,10 +747,15 @@ class Controller(tk.Frame):
         newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
         for button in newbuttons:
             if button.lower() in self.toolbaractions.keys():
-                if self.toolbaractions[button.lower()][1] is not None:
+                if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'clear windows']:
+                    if self.toolbaractions[button.lower()][0] == 'view_log':
+                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=self.view_log), button])
+                    if self.toolbaractions[button.lower()][0] == 'clear windows':
+                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message")), button])
+                    else:
+                        print 'Not implemented.'###fix exp toggles!
+                else: 
                     self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
-                else:
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1]), button])
             else:
                 self.toolbarbuttons.append([tk.Button(self.toolbar, text=button), button])
             self.toolbarbuttons[-1][0].pack(side=tk.LEFT, padx=2, pady=2)
@@ -772,7 +778,10 @@ class Controller(tk.Frame):
                         self.raw_passfail[index] = 'False' #reset value
                         self.info_frame.refresh_frame(self)
             if index == 2:
-                print 'check eff. beam diameter'
+                if np.max(self.analysis_frame) >= x_upper or np.max(self.analysis_frame) <= x_lower:
+                    self.alert("Pass/Fail Test", "Peak Pixel Value has failed to meet criteria!")
+                    self.raw_passfail[index] = 'False' #reset value
+                    self.info_frame.refresh_frame(self)
             if index == 3:
                 if self.peak_cross is not None:
                     y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
@@ -838,9 +847,28 @@ class Controller(tk.Frame):
             'Error. Something went wrong.'
         self.refresh_plot()
         
-    def set_control(self, control):
-        '''Sets a reference in self to the main control instance. Is this bad programming? It makes things work...'''
-        self.control = control
+    def set_config(self):
+        Config = ConfigParser.ConfigParser()
+        Config.read("config.ini")
+ 
+        if Config.has_option('WebcamSpecifications', 'pixel_scale'):
+            self.pixel_scale = Config.get('WebcamSpecifications', 'pixel_scale')
+        if Config.has_option('WebcamSpecifications', 'base_exp'):
+            self.exp = Config.get('WebcamSpecifications', 'base_exp') #then set exp
+            
+        if Config.has_option('Toolbar', 'buttons'):
+            self.toolbaroptions = Config.get('Toolbar', 'buttons')
+            
+        if Config.has_option('Miscellaneous', 'plot_tick'):
+            self.plot_tick = Config.get('Miscellaneous', 'plot_tick')
+        if Config.has_option('Miscellaneous', 'colourmap'):
+            self.change_colourmap(Config.get('Miscellaneous', 'colourmap'))
+        if Config.has_option('Miscellaneous', 'camera_index'):
+            self.plot_refresh = Config.get('Miscellaneous', 'camera_index')
+        if Config.has_option('Miscellaneous', 'style_sheet'):
+            self.style_sheet = Config.get('Miscellaneous', 'style_sheet')
+        if Config.has_option('Miscellaneous', 'fig_type'):
+            self.fig_type = Config.get('Miscellaneous', 'fig_type')
         
 def on_closing():
         '''Closes the GUI.'''
@@ -850,14 +878,13 @@ def on_closing():
         cv2.destroyAllWindows()
         
 def TrueFalse(x):
-    if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan':
+    if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan' and x is not False:
         return 'ACTIVE'
     else:
         return 'INACTIVE'
         
 control = Controller(root)
 control.pack()
-control.set_control(control)
 root.bind('<space>', lambda e: control.profiler_active(option=True))
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()

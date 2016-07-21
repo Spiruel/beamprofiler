@@ -16,7 +16,7 @@ class Config(tkSimpleDialog.Dialog):
     def body(self, master):
         tk.Label(master, text="Plot refresh rate /s:").grid(row=0)
         tk.Label(master, text="Pixel size (µm):").grid(row=1)
-        tk.Label(master, text="Power (W/µm):").grid(row=2)
+        tk.Label(master, text="Power (W):").grid(row=2)
         tk.Label(master, text="Angle (deg):").grid(row=3)
 
         self.e1 = tk.Entry(master)
@@ -25,17 +25,17 @@ class Config(tkSimpleDialog.Dialog):
         self.e4 = tk.Entry(master)
         
         self.e1.delete(0, tk.END)
-        self.e1.insert(0, str(self.master.control.plot_tick))
+        self.e1.insert(0, str(self.master.plot_tick))
         self.e2.delete(0, tk.END)
-        self.e2.insert(0, str(self.master.control.pixel_scale))
+        self.e2.insert(0, str(self.master.pixel_scale))
         self.e3.delete(0, tk.END)
-        if str(self.master.control.power) == 'nan':
+        if str(self.master.power) == 'nan':
             pow = '-'
         else:
-            pow = self.master.control.power
+            pow = self.master.power
         self.e3.insert(0, str(pow))
         self.e4.delete(0, tk.END)
-        self.e4.insert(0, str(self.master.control.angle))
+        self.e4.insert(0, str(self.master.angle))
 
         self.e1.grid(row=0, column=1)
         self.e2.grid(row=1, column=1)
@@ -50,13 +50,13 @@ class Config(tkSimpleDialog.Dialog):
         length=300, tickinterval=1,
         showvalue='yes', 
         orient='horizontal',
-        command = self.master.control.change_exp)
+        command = self.master.change_exp)
         self.expscale.set(self.master.exp)
         self.expscale.grid(row=5, columnspan=2, sticky=tk.W)
                 
         self.roiscale = tk.IntVar(master)
         self.roiscale.set(self.master.roi)
-        self.dropdown5 = tk.OptionMenu(master, self.roiscale, 1, 2, 4, 8, 16, command = self.master.control.set_roi)
+        self.dropdown5 = tk.OptionMenu(master, self.roiscale, 1, 2, 4, 8, 16, command = self.master.set_roi)
         roitext = tk.Label(master, text="zoom factor")
         roitext.grid(row=6, columnspan=2, sticky=tk.W)
         self.dropdown5.grid(row=7, columnspan=2, sticky=tk.W)
@@ -103,7 +103,7 @@ class Config(tkSimpleDialog.Dialog):
         self.e1.delete(0, tk.END)
         self.e1.insert(0, '0.1')
         self.e2.delete(0, tk.END)
-        self.e2.insert(0, '2.8')
+        self.e2.insert(0, '5.6')
         self.e3.delete(0, tk.END)
         self.e3.insert(0, '-')
         self.e4.delete(0, tk.END)
@@ -123,19 +123,19 @@ class InfoFrame(tk.Frame):
         self.tree.heading("#0", text='Parameter', anchor=tk.W)
         self.tree.column("#0", stretch=0)
         self.tree.heading("#1", text='Unit', anchor=tk.W)
-        self.tree.column("#1",  minwidth=0, width=42, stretch=1)
+        self.tree.column("#1",  minwidth=0, width=47, stretch=1)
         self.tree.heading("#2", text='Value', anchor=tk.W)
         self.tree.column("#2",  minwidth=0, width=150, stretch=1)
         self.tree.heading("#3", text='Pass/Fail Test', anchor=tk.W)
         self.tree.column("#3",  minwidth=0, width=80, stretch=1)
         self.tree.heading("#4", text='Min.', anchor=tk.W)
-        self.tree.column("#4",  minwidth=0, width=68, stretch=1)
+        self.tree.column("#4",  minwidth=0, width=65, stretch=1)
         self.tree.heading("#5", text='Max.', anchor=tk.W)
-        self.tree.column("#5",  minwidth=0, width=68, stretch=1)
+        self.tree.column("#5",  minwidth=0, width=65, stretch=1)
         self.tree.heading("#6", text='Min.', anchor=tk.W)
-        self.tree.column("#6",  minwidth=0, width=68, stretch=1)
+        self.tree.column("#6",  minwidth=0, width=65, stretch=1)
         self.tree.heading("#7", text='Max.', anchor=tk.W)
-        self.tree.column("#7",  minwidth=0, width=68, stretch=1)
+        self.tree.column("#7",  minwidth=0, width=65, stretch=1)
 
         if parent.beam_width is None:
             parent.beam_width = (np.nan, np.nan)
@@ -145,10 +145,10 @@ class InfoFrame(tk.Frame):
             parent.centroid = (np.nan, np.nan)
             
         self.pixel_scale = parent.pixel_scale #get pixel scale conversion
-        self.raw_rows = ["Beam Width (D4σ)", "Beam Diameter (D4σ)", "Effective Beam Diameter", "Peak Position", "Centroid Position", "Power Density"]
-        self.raw_units = ["µm","µm","µm","µm","µm","W/µm"]
+        self.raw_rows = ["Beam Width (D4σ)", "Beam Diameter (D4σ)", "Peak Pixel Value", "Peak Position", "Centroid Position", "Power Density"]
+        self.raw_units = ["µm","µm"," ","µm","µm","W/µm²"]
         square = lambda x: x**2 if x is not None else np.nan
-        self.raw_values = ['(' + self.info_format(parent.beam_width[0], convert=True) + ', ' + self.info_format(parent.beam_width[1], convert=True) + ')', self.info_format(parent.beam_diameter, convert=True), self.info_format(np.random.random()), '(' + self.info_format(parent.peak_cross[0], convert=True) + ', ' + self.info_format(parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(parent.centroid[0], convert=True) + ', ' + self.info_format(parent.centroid[1], convert=True) + ')', self.info_format((255000/square(parent.beam_diameter))*parent.power)]
+        self.raw_values = ['(' + self.info_format(parent.beam_width[0], convert=True) + ', ' + self.info_format(parent.beam_width[1], convert=True) + ')', self.info_format(parent.beam_diameter, convert=True), self.info_format(np.max(parent.analysis_frame)), '(' + self.info_format(parent.peak_cross[0], convert=True) + ', ' + self.info_format(parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(parent.centroid[0], convert=True) + ', ' + self.info_format(parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(parent.beam_diameter))*parent.power)]
         self.ellipse_rows = ["Ellipse axes", "Ellipticity", "Eccentricity", "Orientation"]
         self.ellipse_units = ["µm", " ", " ", "deg"]
         self.ellipse_values = ['(' + self.info_format(parent.MA, convert=True) + ', ' + self.info_format(parent.ma, convert=True) + ')', self.info_format(parent.ellipticity), self.info_format(parent.eccentricity), self.info_format(parent.ellipse_angle)]
@@ -181,8 +181,8 @@ class InfoFrame(tk.Frame):
         if parent.centroid is None:
             parent.centroid = (np.nan, np.nan)
             
-        square = lambda x: x**2 if x is not None else np.nan
-        self.raw_values = ['(' + self.info_format(parent.beam_width[0], convert=True) + ', ' + self.info_format(parent.beam_width[1], convert=True) + ')', self.info_format(parent.beam_diameter, convert=True), self.info_format(np.random.random()), '(' + self.info_format(parent.peak_cross[0], convert=True) + ', ' + self.info_format(parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(parent.centroid[0], convert=True) + ', ' + self.info_format(parent.centroid[1], convert=True) + ')', self.info_format((255000/square(parent.beam_diameter))*parent.power)]
+        square = lambda x: x**2 if x is not None else np.nan #3e-15 power dens before sat
+        self.raw_values = ['(' + self.info_format(parent.beam_width[0], convert=True) + ', ' + self.info_format(parent.beam_width[1], convert=True) + ')', self.info_format(parent.beam_diameter, convert=True), self.info_format(np.max(parent.analysis_frame)), '(' + self.info_format(parent.peak_cross[0], convert=True) + ', ' + self.info_format(parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(parent.centroid[0], convert=True) + ', ' + self.info_format(parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(parent.beam_diameter))*parent.power)]
         self.ellipse_values = ['(' + self.info_format(parent.MA, convert=True) + ', ' + self.info_format(parent.ma, convert=True) + ')', self.info_format(parent.ellipticity), self.info_format(parent.eccentricity), self.info_format(parent.ellipse_angle)]
 
         self.tree.delete(*self.tree.get_children())
@@ -381,7 +381,7 @@ class ToolbarConfig(tkSimpleDialog.Dialog):
         self.result = []
         self.options = ['x Cross Profile', 'y Cross Profile', '2D Profile', '2D Surface',
                   'Plot Positions', 'Plot Power', 'Plot Orientation', 'Beam Stability',
-                  'Increase exposure', 'Decrease exposure', 'View log', 'Basic Workspace', 'Close all windows']
+                  'Increase exposure', 'Decrease exposure', 'View log', 'Basic Workspace', 'Clear windows']
         tkSimpleDialog.Dialog.__init__(self, master)
         
     def body(self, master):
@@ -406,18 +406,22 @@ class ToolbarConfig(tkSimpleDialog.Dialog):
 class Progress(tk.Frame):
     def __init__(self, parent):
         self.parent = parent
-        self.progressbar = ttk.Progressbar(self.parent.statusbar, orient=tk.HORIZONTAL, length=100, maximum=64, mode='determinate')
+        self.progressbar = ttk.Progressbar(self.parent.statusbar, orient=tk.HORIZONTAL, length=100, maximum=250, mode='determinate')
         self.progressbar.pack(side=tk.RIGHT, padx=5)
         
-    def next_step(self):
-        for i in range(64):
+    def next_step(self):          
+        # Create a numpy array of floats to store the average (assume RGB images)
+        arr = np.zeros(self.parent.frame.shape, np.float)
+        for i in range(250):
+            imarr = np.array(self.parent.frame,dtype=np.float)
+            arr = arr+imarr/250
             self.progressbar.step(1)
-            time.sleep(0.1)
-            
-        # while self.parent.bg_subtract <= 64:  #not ready yet
-            # self.progessbar.step(1)
+            time.sleep(0.01)
 
-        print 'Background calibration complete'
+        # Round values in array and cast as 16-bit integer
+        self.parent.bg_frame = np.array(np.round(arr),dtype=np.uint8)
+
+        self.parent.log('Background calibration complete')
         
     def calibrate_bg(self):
         # self.parent.bg_subtract = 1
