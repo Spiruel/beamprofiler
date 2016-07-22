@@ -388,14 +388,12 @@ class ToolbarConfig(tkSimpleDialog.Dialog):
         tk.Label(self, text='Select choices for Toolbar buttons').pack()
         for i in self.options:
             dummy1 = tk.IntVar()
-            if i in self.master.toolbaroptions:
+            if i.lower() in [a.lower() for a in self.master.toolbaroptions]:
                 dummy1.set(1)
             else:
                 dummy1.set(0)
             dummy2 = tk.Checkbutton(self, text=i, variable=dummy1).pack(side=tk.TOP, padx=2, pady=2)
             self.dummies1.append(dummy1)
-            
-            #on OK add the dummies to self.master.toolbar frame
         
     def apply(self):
         self.result = self.dummies1
@@ -406,15 +404,17 @@ class ToolbarConfig(tkSimpleDialog.Dialog):
 class Progress(tk.Frame):
     def __init__(self, parent):
         self.parent = parent
-        self.progressbar = ttk.Progressbar(self.parent.statusbar, orient=tk.HORIZONTAL, length=100, maximum=250, mode='determinate')
+        self.v = tk.DoubleVar()  
+        self.progressbar = ttk.Progressbar(self.parent.statusbar, variable=self.v, orient=tk.HORIZONTAL, length=100, maximum=100, mode='determinate')
         self.progressbar.pack(side=tk.RIGHT, padx=5)
         
-    def next_step(self):          
+    def next_step(self):
+        self.v.set(0)
         # Create a numpy array of floats to store the average (assume RGB images)
         arr = np.zeros(self.parent.frame.shape, np.float)
-        for i in range(250):
+        for i in range(100):
             imarr = np.array(self.parent.frame,dtype=np.float)
-            arr = arr+imarr/250
+            arr = arr+imarr/100
             self.progressbar.step(1)
             time.sleep(0.01)
 
@@ -422,8 +422,11 @@ class Progress(tk.Frame):
         self.parent.bg_frame = np.array(np.round(arr),dtype=np.uint8)
 
         self.parent.log('Background calibration complete')
+        self.v.set(0)
         
     def calibrate_bg(self):
-        # self.parent.bg_subtract = 1
         t1=threading.Thread(target=self.next_step)
         t1.start()
+        
+    def reset_bg(self):
+        self.parent.bg_frame = 0

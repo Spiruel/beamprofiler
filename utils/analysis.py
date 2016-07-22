@@ -266,11 +266,12 @@ class Analyse(threading.Thread):
         if cent_y >= height:
             return None
             
-        x = np.linspace(0, width, width)
-        y = np.linspace(height, 0, height)
+        x = np.arange(0, width, 1)
+        y = np.arange(height, 0, -1)
         xs, ys = np.meshgrid(x,y)
-        
+
         sig_x = np.sqrt(np.sum((xs-centroid[0])**2 * image) / np.sum(image))
         sig_y = np.sqrt(np.sum((ys-centroid[1])**2 * image) / np.sum(image))
-
+        
+        print (4*sig_x, 4*sig_y)
         return (4*sig_x, 4*sig_y)

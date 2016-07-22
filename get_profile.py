@@ -58,6 +58,7 @@ class Controller(tk.Frame):
                               'view log': ['view_log', tk.PhotoImage(file='images/log.gif')],
                                'clear windows': ['clear windows', tk.PhotoImage(file='images/clear_windows.gif')]
                                }
+        self.toolbaroptions = ['x Cross Profile', 'y Cross Profile'] #initial choices for active buttons on toolbar
         self.camera_index = 0
         self.beam_width, self.beam_diameter = None, None
         self.centroid = None
@@ -129,7 +130,7 @@ class Controller(tk.Frame):
         self.statusbar = tk.Frame(self.parent)
         self.progress = interface.Progress(self)
         
-        self.set_config() #overwrite prev init values with new config
+        self.set_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
 
         # **** Status Bar ****
         self.status = tk.StringVar()
@@ -155,7 +156,10 @@ class Controller(tk.Frame):
         submenu.add_command(label="1", command= lambda: self.change_cam(1))
         submenu.add_command(label="2", command= lambda: self.change_cam(2))
         controlMenu.add_command(label="Edit Config", command=self.change_config)
+        controlMenu.add_separator()
         controlMenu.add_command(label="Calibrate background subtraction", command=self.progress.calibrate_bg)
+        controlMenu.add_command(label="Reset background subtraction", command=self.progress.reset_bg)
+        controlMenu.add_separator()
         controlMenu.add_command(label="View Log", command= self.view_log)
         controlMenu.add_cascade(label='Change Camera', menu=submenu, underline=0)
         controlMenu.add_separator()
@@ -267,7 +271,6 @@ class Controller(tk.Frame):
         b = tk.Button(labelframe, text="Sound", command=lambda: output.WavePlayerLoop(freq=440.*(self.peak_cross[0]/640.), length=10., volume=0.5).start())
         b.pack(fill=tk.BOTH)
         
-        self.toolbaroptions = ['x Cross Profile', 'y Cross Profile'] #initial choices for active buttons on toolbar
         self.update_toolbar()
         
         self.make_fig() #make figure environment
@@ -290,6 +293,7 @@ class Controller(tk.Frame):
         toolbar = NavigationToolbar2TkAgg(canvas, self) 
         toolbar.update() 
         canvas._tkcanvas.pack()
+        self.change_style(self.style_sheet)
         
     def refresh_plot(self):
         '''Updates the matplotlib figure with new data.'''
@@ -323,7 +327,7 @@ class Controller(tk.Frame):
                 plt.ylim(0,255)
         elif self.fig_type == '2d profile':
             if self.peak_cross != None:
-                size = 50
+                size = 100
                 x, y = self.peak_cross
                 img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
                 # # # # # params = self.analyse.fit_gaussian(with_bounds=False)
@@ -343,8 +347,12 @@ class Controller(tk.Frame):
                 ys_x = grayscale[self.peak_cross[1],:]
                 ys_y = grayscale[:,self.peak_cross[0]]
                 norm_factor = np.max(ys_x)/(0.25*size)
-                plt.plot(xs, size - (ys_x[self.peak_cross[0]-(size/2):self.peak_cross[0]+(size/2)]/norm_factor),'y-', lw=2)
-                plt.plot(ys_y[self.peak_cross[1]-(size/2):self.peak_cross[1]+(size/2)]/norm_factor, xs,'y-', lw=2)
+
+                try:
+                    plt.plot(xs, size - (ys_x[self.peak_cross[0]-(size/2):self.peak_cross[0]+(size/2)]/norm_factor),'y-', lw=2)
+                    plt.plot(ys_y[self.peak_cross[1]-(size/2):self.peak_cross[1]+(size/2)]/norm_factor, xs,'y-', lw=2)
+                except:
+                    return
                 
                 try:
                     popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys_x,p0=[250,self.peak_cross[0],20], maxfev=50)
@@ -405,7 +413,7 @@ class Controller(tk.Frame):
             plt.plot(self.peak_hist_x, self.peak_hist_y, 'b-', label='peak cross')
             plt.xlim(0, self.width)
             plt.ylim(self.height, 0)
-            plt.plot([0,0],'w.'); plt.legend(frameon=False)
+            plt.plot([0,0],'w.',label=''); plt.legend(frameon=False)
         elif self.fig_type == 'positions':
             # plt.xlabel('$time$ $/s$'); plt.ylabel('$position$ $/\mu m$')
             if self.graphs['centroid_x']: plt.plot(self.running_time-self.running_time[0], self.centroid_hist_x, 'b-', label='centroid x coordinate')
@@ -420,14 +428,15 @@ class Controller(tk.Frame):
             plt.ylim(0,self.width)
             plt.plot([0,0],'w.'); plt.legend(frameon=False)
         elif self.fig_type == 'orientation':
-            if self.graphs['ellipse_orientation']: plt.plot(self.running_time-self.running_time[0], self.ellipse_hist_angle, 'c-', label='ellipse orientation')
-            if self.running_time[-1] - self.running_time[0] <= 60:
-                plt.xlim(0, 60)
-            else:
-                index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
-                plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
+            if len(self.running_time) > 0:
+                if self.graphs['ellipse_orientation']: plt.plot(self.running_time-self.running_time[0], self.ellipse_hist_angle, 'c-', label='ellipse orientation')
+                if self.running_time[-1] - self.running_time[0] <= 60:
+                    plt.xlim(0, 60)
+                else:
+                    index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
+                    plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
             plt.ylim(0,360)
-            plt.plot([0,0],'w.'); plt.legend(frameon=False)
+            plt.plot([0,0],'w.',label=''); plt.legend(frameon=False)
         else:
             print 'fig type not found.', self.fig_type
             
@@ -449,7 +458,6 @@ class Controller(tk.Frame):
             
     def change_style(self, option):
         '''Changes the style sheet used in the plot'''
-        print self.style_sheet, option
         if self.style_sheet != option:
             self.log('Changed style sheet ' + option)
             self.style_sheet = option
@@ -458,6 +466,17 @@ class Controller(tk.Frame):
             plt.clf()
             self.refresh_plot()
             
+    def set_exp(self):
+        '''Sets the exposure time of the camera.'''
+        self.log('Changing exposure to ' + str(self.exp))
+        self.cap.set(15, self.exp)
+        
+    def adjust_exp(self, amount):
+        '''Either raises or lowers the exposure of the camera by +/- 1'''
+        self.exp = self.exp + amount
+        self.log('Changing exposure to ' + str(self.exp))
+        self.cap.set(15, self.exp)
+        
     def change_exp(self, option):
         '''Changes the exposure time of the camera.'''
         self.exp = float(option)
@@ -478,7 +497,8 @@ class Controller(tk.Frame):
             raise Exception("Camera not accessible")
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-                  
+        self.set_exp()
+              
     def change_cam(self, option):
         '''Switches between camera_indexes and therefore different connected cameras.'''
         if self.camera_index != option and type(option) == int:
@@ -506,7 +526,7 @@ class Controller(tk.Frame):
         _, frame = self.cap.read() #read camera input
 
         self.frame = frame
-        frame = frame - self.bg_frame
+        frame = cv2.subtract(frame, self.bg_frame)
 
         # frame = np.asarray(Image.open("output.png"))
         # frame = cv2.flip(frame, 1)
@@ -535,6 +555,7 @@ class Controller(tk.Frame):
 
             peak_cross = self.analyse.find_peak()
             self.peak_cross = peak_cross
+            
             cross_size = 10
             screen_peak_cross = peak_cross[0]*(self.width/640), peak_cross[1]*(self.height/360)
             cv2.line(cv2image, (int(screen_peak_cross[0])-cross_size, int(screen_peak_cross[1])), (int(screen_peak_cross[0])+cross_size, int(screen_peak_cross[1])), 255, thickness=1)
@@ -553,8 +574,6 @@ class Controller(tk.Frame):
                     # self.peak_cross = None
                 
                 if centroid[0] < self.width or centroid[1] < self.height: #ensure centroid lies within correct regions
-                    # cv2.circle(cv2image,centroid,10,255,thickness=10)
-                    # cv2.putText(cv2image,'Centroid position: ' + str(centroid), (10,310), cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
                     self.centroid = centroid
                     
                     cross_size = 20
@@ -603,7 +622,6 @@ class Controller(tk.Frame):
         lmain.after(10, self.show_frame)
         
         self.img = frame
-        
         curr_time = time.time()
         if curr_time - self.plot_time > self.plot_tick and self.active: #if tickrate period elapsed, update the plot with new data
             self.refresh_plot()
@@ -693,8 +711,8 @@ class Controller(tk.Frame):
         f = tkFileDialog.asksaveasfile(mode='w', initialfile='output.csv', defaultextension=".csv")
         if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
-        output = np.column_stack((self.running_time.flatten(),self.centroid_hist_x.flatten(),self.centroid_hist_y.flatten()))
-        np.savetxt('output.csv',output,delimiter=',',header='Laser Beam Profiler Data Export. \n running time, centroid_hist_x, centroid_hist_y')
+        output = np.column_stack((self.running_time.flatten(),self.centroid_hist_x.flatten(),self.centroid_hist_y.flatten(),self.peak_hist_x.flatten(),self.peak_hist_y.flatten()))
+        np.savetxt('output.csv',output,delimiter=',',header='Laser Beam Profiler Data Export. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y')
     
     def calc_results(self):
         '''Opens calculation results window'''
@@ -750,10 +768,12 @@ class Controller(tk.Frame):
                 if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'clear windows']:
                     if self.toolbaractions[button.lower()][0] == 'view_log':
                         self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=self.view_log), button])
-                    if self.toolbaractions[button.lower()][0] == 'clear windows':
+                    elif self.toolbaractions[button.lower()][0] == 'clear windows':
                         self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message")), button])
-                    else:
-                        print 'Not implemented.'###fix exp toggles!
+                    if self.toolbaractions[button.lower()][0] == 'inc_exp':
+                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(1)), button])
+                    elif self.toolbaractions[button.lower()][0] == 'dec_exp':
+                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(-1)), button])
                 else: 
                     self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
             else:
@@ -848,27 +868,36 @@ class Controller(tk.Frame):
         self.refresh_plot()
         
     def set_config(self):
+        '''Reads config file on startup and sets chosen configuration'''
         Config = ConfigParser.ConfigParser()
-        Config.read("config.ini")
- 
-        if Config.has_option('WebcamSpecifications', 'pixel_scale'):
-            self.pixel_scale = Config.get('WebcamSpecifications', 'pixel_scale')
-        if Config.has_option('WebcamSpecifications', 'base_exp'):
-            self.exp = Config.get('WebcamSpecifications', 'base_exp') #then set exp
-            
-        if Config.has_option('Toolbar', 'buttons'):
-            self.toolbaroptions = Config.get('Toolbar', 'buttons')
-            
-        if Config.has_option('Miscellaneous', 'plot_tick'):
-            self.plot_tick = Config.get('Miscellaneous', 'plot_tick')
-        if Config.has_option('Miscellaneous', 'colourmap'):
-            self.change_colourmap(Config.get('Miscellaneous', 'colourmap'))
-        if Config.has_option('Miscellaneous', 'camera_index'):
-            self.plot_refresh = Config.get('Miscellaneous', 'camera_index')
-        if Config.has_option('Miscellaneous', 'style_sheet'):
-            self.style_sheet = Config.get('Miscellaneous', 'style_sheet')
-        if Config.has_option('Miscellaneous', 'fig_type'):
-            self.fig_type = Config.get('Miscellaneous', 'fig_type')
+        if Config.read("config.ini") != []:
+            if Config.has_option('WebcamSpecifications', 'pixel_scale'):
+                self.pixel_scale = float(Config.get('WebcamSpecifications', 'pixel_scale'))
+            if Config.has_option('WebcamSpecifications', 'base_exp'):
+                self.exp = float(Config.get('WebcamSpecifications', 'base_exp')) #then set exp
+                
+            if Config.has_option('LaserSpecifications', 'power'):
+                power = (Config.get('LaserSpecifications', 'power'))
+                if power == '-' or not power.isdigit():
+                    self.power = np.nan
+                else:
+                    self.power = float(power)
+            if Config.has_option('LaserSpecifications', 'angle'):
+                self.angle = float(Config.get('LaserSpecifications', 'angle'))
+                
+            if Config.has_option('Toolbar', 'buttons'):
+                self.toolbaroptions = Config.get('Toolbar', 'buttons').replace(', ',',').split(',')
+                
+            if Config.has_option('Miscellaneous', 'plot_tick'):
+                self.plot_tick = float(Config.get('Miscellaneous', 'plot_tick'))
+            if Config.has_option('Miscellaneous', 'colourmap'):
+                self.change_colourmap(Config.get('Miscellaneous', 'colourmap'))
+            if Config.has_option('Miscellaneous', 'camera_index'):
+                self.camera_index = int(Config.get('Miscellaneous', 'camera_index'))
+            if Config.has_option('Miscellaneous', 'style_sheet'):
+                self.style_sheet = Config.get('Miscellaneous', 'style_sheet')
+            if Config.has_option('Miscellaneous', 'fig_type'):
+                self.fig_type = Config.get('Miscellaneous', 'fig_type')
         
 def on_closing():
         '''Closes the GUI.'''
