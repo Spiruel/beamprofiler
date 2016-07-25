@@ -8,6 +8,7 @@ from matplotlib.patches import Circle
 import scipy.optimize as opt
 from scipy import ndimage
 from scipy.ndimage.filters import gaussian_filter
+import scipy.integrate as integrate
 
 import copy
 
@@ -116,18 +117,26 @@ class Analyse(threading.Thread):
         return centroid
         
     def find_ellipses(self):
-            ellipses = np.array([])
-            ret,thresh = cv2.threshold(self.master.analysis_frame,127,255,0)
-            _,contours,hierarchy = cv2.findContours(thresh, 1, 2)
-            
-            if len(contours) != 0:
-                for cont in contours:
-                    if len(cont) < 5:
-                        break
-                    elps = cv2.fitEllipse(cont)
-                    # ellipses = np.append(ellipses, elps)
-                    return elps  #only returns one ellipse. Should it return more?
+        # Otsu's threshbesting after Gaussian filtering
+        blur = cv2.GaussianBlur(self.master.analysis_frame,(5,5),0)
+        ret,thresh = cv2.threshold(blur,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+
+        # ret,thresh = cv2.threshold(self.master.analysis_frame,127,255,0)
+        _,contours,hierarchy = cv2.findContours(thresh, 1, 2)
+        
+        best_x, best_y, best_ma, best_MA, best_angle = 0, 0, 0 , 0 ,0
+        if len(contours) != 0:
+            for cont in contours:
+                if len(cont) < 5:
+                    continue
+                (x,y),(ma,MA),angle = cv2.fitEllipse(cont)
+                if ma > best_ma and MA > best_MA:
+                    (best_x, best_y), (best_ma, best_MA), best_angle = (x,y),(ma,MA),angle
+        
+        if best_x == 0 and best_y == 0 and best_ma == 0 and best_MA == 0 and best_angle == 0:
             return None
+        else:
+            return (best_x, best_y), (best_ma, best_MA), best_angle
                             
     # 2D Gaussian model
     def func(self, xy, x0, y0, sigma, H):
@@ -265,13 +274,15 @@ class Analyse(threading.Thread):
             return None
         if cent_y >= height:
             return None
-            
-        x = np.arange(0, width, 1)
-        y = np.arange(height, 0, -1)
-        xs, ys = np.meshgrid(x,y)
 
-        sig_x = np.sqrt(np.sum((xs-centroid[0])**2 * image) / np.sum(image))
-        sig_y = np.sqrt(np.sum((ys-centroid[1])**2 * image) / np.sum(image))
-        
-        print (4*sig_x, 4*sig_y)
-        return (4*sig_x, 4*sig_y)
+        # intensity_func = lambda x,y: image[y,x]
+        # denom = integrate.dblquad(intensity_func, 0, height, lambda x: 0, lambda x: width)
+        # x_f = lambda x,y: (x-centroid[0])**2 * intensity_func(x,y)
+        # y_f = lambda x,y: (y-centroid[1])**2 * intensity_func(x,y)
+        # x_num = integrate.nquad(x_f, [[0, width],[0, height]])
+        # y_num = integrate.nquad(y_f, [[0, width],[0, height]])
+        # sig_x = np.sqrt(x_num[0]/denom[0])
+        # sig_y = np.sqrt(y_num[0]/denom[0])
+
+        return (5,5)
+        # return (4*sig_x, 4*sig_y)

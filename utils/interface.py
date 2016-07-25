@@ -7,6 +7,7 @@ import numpy as np
 import tkSimpleDialog, tkMessageBox
 import time
 import threading
+import ConfigParser
        
 class Config(tkSimpleDialog.Dialog):
     def __init__(self, master):
@@ -45,6 +46,9 @@ class Config(tkSimpleDialog.Dialog):
         self.rb = tk.Button(master, text="Reset to default", command=self.reset_values)
         self.rb.grid(row=4, columnspan=2)
         
+        self.sc = tk.Button(master, text="Apply and save to config", command=self.save_config)
+        self.sc.grid(row=5, columnspan=2)
+        
         self.expscale = tk.Scale(master, label='exposure',
         from_=-15, to=-8,
         length=300, tickinterval=1,
@@ -52,15 +56,15 @@ class Config(tkSimpleDialog.Dialog):
         orient='horizontal',
         command = self.master.change_exp)
         self.expscale.set(self.master.exp)
-        self.expscale.grid(row=5, columnspan=2, sticky=tk.W)
+        self.expscale.grid(row=6, columnspan=2, sticky=tk.W)
                 
         self.roiscale = tk.IntVar(master)
         self.roiscale.set(self.master.roi)
         self.dropdown5 = tk.OptionMenu(master, self.roiscale, 1, 2, 4, 8, 16, command = self.master.set_roi)
         roitext = tk.Label(master, text="zoom factor")
-        roitext.grid(row=6, columnspan=2, sticky=tk.W)
-        self.dropdown5.grid(row=7, columnspan=2, sticky=tk.W)
-        
+        roitext.grid(row=7, columnspan=2, sticky=tk.W)
+        self.dropdown5.grid(row=8, columnspan=2, sticky=tk.W)
+
         return self.e1 # initial focus
         
     def validate(self):
@@ -109,6 +113,27 @@ class Config(tkSimpleDialog.Dialog):
         self.e4.delete(0, tk.END)
         self.e4.insert(0, '0.0')
         
+    def save_config(self):
+        config = ConfigParser.ConfigParser()
+        section = {
+        'pixel_scale': 'WebcamSpecifications',
+        'base_exp': 'WebcamSpecifications',
+        'power': 'LaserSpecifications',
+        'angle': 'LaserSpecifications',
+        'plot_tick': 'Miscellaneous'
+        }
+        
+        value = ['plot_tick', 'pixel_scale', 'power', 'angle']
+        setting = [self.e1.get(), self.e2.get(), self.e3.get(), self.e4.get()]
+        
+        if self.validate():
+            if config.read("config.ini") != []:
+                for val, sett in zip(value, setting):
+                    config.set(section[val], val, sett)    
+                with open('config.ini', 'w') as configfile:
+                    config.write(configfile)
+                self.master.log('Written new values to config.ini')
+
     def close(self):
         self.destroy()
         
@@ -170,10 +195,12 @@ class InfoFrame(tk.Frame):
         button_pf.pack(padx=5, pady=20, side=tk.LEFT)
         button_edit = tk.Button(self.window, text="edit", command=lambda: self.edit(parent))
         button_edit.pack(padx=5, pady=20, side=tk.LEFT)
-        
         self.refresh_frame(parent)
     
     def refresh_frame(self, parent):
+
+        self.curr_item = self.tree.focus()
+        
         if parent.beam_width is None:
             parent.beam_width = (np.nan, np.nan)
         if parent.peak_cross is None: 
@@ -195,6 +222,9 @@ class InfoFrame(tk.Frame):
             self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], parent.ellipse_passfail[i], parent.ellipse_xbounds[i][0], parent.ellipse_xbounds[i][1], parent.ellipse_ybounds[i][0], parent.ellipse_ybounds[i][1]))
         self.tree.see("23")
 
+        self.tree.selection_set(self.curr_item)
+        self.tree.focus(self.curr_item)
+        
     def pass_fail(self, parent):
         selected_item = self.tree.selection()
         if len(selected_item) == 1:

@@ -130,7 +130,7 @@ class Controller(tk.Frame):
         self.statusbar = tk.Frame(self.parent)
         self.progress = interface.Progress(self)
         
-        self.set_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
+        self.read_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
 
         # **** Status Bar ****
         self.status = tk.StringVar()
@@ -152,9 +152,14 @@ class Controller(tk.Frame):
         
         controlMenu = tk.Menu(menubar, tearoff=1)
         submenu = tk.Menu(controlMenu, tearoff=1)
-        submenu.add_command(label="0", command= lambda: self.change_cam(0))
-        submenu.add_command(label="1", command= lambda: self.change_cam(1))
-        submenu.add_command(label="2", command= lambda: self.change_cam(2))
+        camera_count = self.count_cameras()
+        submenu.add_command(label='0', command= lambda: self.change_cam(0))
+        if camera_count > 2: submenu.add_command(label='1', command= lambda: self.change_cam(1))
+        if camera_count >= 3: submenu.add_command(label='2', command= lambda: self.change_cam(2))
+        if camera_count >= 4: submenu.add_command(label='3', command= lambda: self.change_cam(3))
+        if camera_count >= 5: submenu.add_command(label='4', command= lambda: self.change_cam(4))
+        if camera_count >= 6: submenu.add_command(label='5', command= lambda: self.change_cam(5))
+        if camera_count >= 7: submenu.add_command(label='6', command= lambda: self.change_cam(6))
         controlMenu.add_command(label="Edit Config", command=self.change_config)
         controlMenu.add_separator()
         controlMenu.add_command(label="Calibrate background subtraction", command=self.progress.calibrate_bg)
@@ -293,7 +298,8 @@ class Controller(tk.Frame):
         toolbar = NavigationToolbar2TkAgg(canvas, self) 
         toolbar.update() 
         canvas._tkcanvas.pack()
-        self.change_style(self.style_sheet)
+        
+        self.change_style(self.style_sheet, set=True)
         
     def refresh_plot(self):
         '''Updates the matplotlib figure with new data.'''
@@ -456,9 +462,9 @@ class Controller(tk.Frame):
             plt.clf()
             self.refresh_plot()
             
-    def change_style(self, option):
+    def change_style(self, option, set=False):
         '''Changes the style sheet used in the plot'''
-        if self.style_sheet != option:
+        if self.style_sheet != option or set==True:
             self.log('Changed style sheet ' + option)
             self.style_sheet = option
             plt.style.use(option)
@@ -511,7 +517,7 @@ class Controller(tk.Frame):
     def change_colourmap(self, option):
         '''Changes the colourmap used in the camera feed.'''
         if self.colourmap != option:
-            self.log('changed colourmap to ' + option)
+            self.log('Changed colourmap to ' + option)
             if option.lower() == 'jet':
                 self.colourmap = cv2.COLORMAP_JET
             elif option.lower() == 'autumn':
@@ -626,9 +632,9 @@ class Controller(tk.Frame):
         if curr_time - self.plot_time > self.plot_tick and self.active: #if tickrate period elapsed, update the plot with new data
             self.refresh_plot()
             self.tick_counter += 1
-            # if self.tick_counter > 10 and self.info_frame != None: #if 10 ticks passed update results window
-                # self.info_frame.refresh_frame(self)
-                # self.tick_counter = 0
+            if self.tick_counter > 2 and self.info_frame != None: #if 10 ticks passed update results window
+                self.info_frame.refresh_frame(self)
+                self.tick_counter = 0
             self.plot_time = time.time() #update plot time info
             
     def set_angle(self, option):
@@ -867,38 +873,56 @@ class Controller(tk.Frame):
             'Error. Something went wrong.'
         self.refresh_plot()
         
-    def set_config(self):
+    def read_config(self):
         '''Reads config file on startup and sets chosen configuration'''
-        Config = ConfigParser.ConfigParser()
-        if Config.read("config.ini") != []:
-            if Config.has_option('WebcamSpecifications', 'pixel_scale'):
-                self.pixel_scale = float(Config.get('WebcamSpecifications', 'pixel_scale'))
-            if Config.has_option('WebcamSpecifications', 'base_exp'):
-                self.exp = float(Config.get('WebcamSpecifications', 'base_exp')) #then set exp
+        config = ConfigParser.ConfigParser()
+        if config.read("config.ini") != []:
+            if config.has_option('WebcamSpecifications', 'pixel_scale'):
+                self.pixel_scale = float(config.get('WebcamSpecifications', 'pixel_scale'))
+            if config.has_option('WebcamSpecifications', 'base_exp'):
+                self.exp = float(config.get('WebcamSpecifications', 'base_exp')) #then set exp
                 
-            if Config.has_option('LaserSpecifications', 'power'):
-                power = (Config.get('LaserSpecifications', 'power'))
+            if config.has_option('LaserSpecifications', 'power'):
+                power = (config.get('LaserSpecifications', 'power'))
                 if power == '-' or not power.isdigit():
                     self.power = np.nan
                 else:
                     self.power = float(power)
-            if Config.has_option('LaserSpecifications', 'angle'):
-                self.angle = float(Config.get('LaserSpecifications', 'angle'))
+            if config.has_option('LaserSpecifications', 'angle'):
+                self.angle = float(config.get('LaserSpecifications', 'angle'))
                 
-            if Config.has_option('Toolbar', 'buttons'):
-                self.toolbaroptions = Config.get('Toolbar', 'buttons').replace(', ',',').split(',')
+            if config.has_option('Toolbar', 'buttons'):
+                self.toolbaroptions = config.get('Toolbar', 'buttons').replace(', ',',').split(',')
                 
-            if Config.has_option('Miscellaneous', 'plot_tick'):
-                self.plot_tick = float(Config.get('Miscellaneous', 'plot_tick'))
-            if Config.has_option('Miscellaneous', 'colourmap'):
-                self.change_colourmap(Config.get('Miscellaneous', 'colourmap'))
-            if Config.has_option('Miscellaneous', 'camera_index'):
-                self.camera_index = int(Config.get('Miscellaneous', 'camera_index'))
-            if Config.has_option('Miscellaneous', 'style_sheet'):
-                self.style_sheet = Config.get('Miscellaneous', 'style_sheet')
-            if Config.has_option('Miscellaneous', 'fig_type'):
-                self.fig_type = Config.get('Miscellaneous', 'fig_type')
+            if config.has_option('Miscellaneous', 'plot_tick'):
+                self.plot_tick = float(config.get('Miscellaneous', 'plot_tick'))
+            if config.has_option('Miscellaneous', 'colourmap'):
+                self.change_colourmap(config.get('Miscellaneous', 'colourmap'))
+            if config.has_option('Miscellaneous', 'camera_index'):
+                self.camera_index = int(config.get('Miscellaneous', 'camera_index'))
+            if config.has_option('Miscellaneous', 'style_sheet'):
+                self.style_sheet = config.get('Miscellaneous', 'style_sheet')
+            if config.has_option('Miscellaneous', 'fig_type'):
+                self.fig_type = config.get('Miscellaneous', 'fig_type')
         
+    def clear_capture(self, capture):
+        capture.release()
+        cv2.destroyAllWindows()
+
+    def count_cameras(self):
+        n = 0
+        for i in range(7):
+            try:
+                cap = cv2.VideoCapture(i)
+                ret, frame = cap.read()
+                cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                self.clear_capture(cap)
+                n += 1
+            except:
+                self.clear_capture(cap)
+                break
+        return n
+            
 def on_closing():
         '''Closes the GUI.'''
         root.quit()
