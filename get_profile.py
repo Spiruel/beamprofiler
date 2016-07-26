@@ -134,13 +134,13 @@ class Controller(tk.Frame):
 
         # **** Status Bar ****
         self.status = tk.StringVar()
-        status_string = "Profiler: " + str(TrueFalse(self.active)) + " | " + "Centroid: " + str(TrueFalse(self.centroid)) + " | Ellipse: " + str(TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(TrueFalse(self.peak_cross))
+        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross))
         self.status.set(status_string)
         status_label = tk.Label(self.statusbar, textvariable=self.status, width = 65, pady = 5, anchor=tk.W)
         status_label.pack(side=tk.BOTTOM, fill=tk.X)
         self.statusbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-        self.parent.title('Laser Beam Profiler')
+        self.parent.title('BiLBA')
         
         ###################################################################NAVBAR
         menubar = tk.Menu(self.parent)
@@ -193,6 +193,7 @@ class Controller(tk.Frame):
         submenu = tk.Menu(imageMenu, tearoff=1)
         submenu.add_command(label="Normal", command= lambda: self.change_colourmap('normal'))
         submenu.add_command(label="Jet", command= lambda: self.change_colourmap('jet'))
+        submenu.add_command(label="Parula", command=lambda: self.change_colourmap('parula'))
         submenu.add_command(label="Autumn", command=lambda: self.change_colourmap('autumn'))
         submenu.add_command(label="Bone", command=lambda: self.change_colourmap('bone'))
         imageMenu.add_cascade(label='Change Colourmap', menu=submenu, underline=0)
@@ -206,7 +207,7 @@ class Controller(tk.Frame):
         menubar.add_cascade(label="Image", underline=0, menu=imageMenu)        
         
         helpmenu = tk.Menu(menubar, tearoff=1)
-        helpmenu.add_command(label="About", command=lambda: self.info_window("About", "Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
+        helpmenu.add_command(label="About", command=lambda: self.info_window("About", "BiBLA is a Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
         menubar.add_cascade(label="Help", menu=helpmenu)
 
         self.parent.config(menu=menubar)
@@ -276,7 +277,9 @@ class Controller(tk.Frame):
         b = tk.Button(labelframe, text="Sound", command=lambda: output.WavePlayerLoop(freq=440.*(self.peak_cross[0]/640.), length=10., volume=0.5).start())
         b.pack(fill=tk.BOTH)
         
-        self.update_toolbar()
+        newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
+        for button in newbuttons:
+            self.update_toolbar(button)
         
         self.make_fig() #make figure environment
         self.init_camera() #initialise camera
@@ -333,7 +336,10 @@ class Controller(tk.Frame):
                 plt.ylim(0,255)
         elif self.fig_type == '2d profile':
             if self.peak_cross != None:
-                size = 100
+                if str(self.MA) != 'nan':
+                    size = 2*int(self.MA)+10
+                else:
+                    size = 50
                 x, y = self.peak_cross
                 img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
                 # # # # # params = self.analyse.fit_gaussian(with_bounds=False)
@@ -347,6 +353,9 @@ class Controller(tk.Frame):
                     cmap=plt.cm.autumn
                 elif self.colourmap == 1:
                     cmap=plt.cm.bone
+                elif self.colourmap == 12:
+                    from utils import graphing
+                    cmap=graphing.parula_cm
                 plt.imshow(img, cmap=cmap, interpolation='nearest', origin='lower')
                 
                 xs = np.arange(size)
@@ -524,6 +533,8 @@ class Controller(tk.Frame):
                 self.colourmap = cv2.COLORMAP_AUTUMN
             elif option.lower() == 'bone':
                 self.colourmap = cv2.COLORMAP_BONE
+            elif option.lower() == 'parula':
+                self.colourmap = cv2.COLORMAP_PARULA
             else:
                 self.colourmap = None
             
@@ -618,7 +629,7 @@ class Controller(tk.Frame):
             else:
                 self.beam_diameter = None
                 
-        status_string = "Profiler: " + str(TrueFalse(self.active)) + " | " + "Centroid: " + str(TrueFalse(self.centroid)) + " | Peak Cross: " + str(TrueFalse(self.peak_cross) + " | Ellipse: " + str(TrueFalse(self.ellipse_angle)))
+        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)))
         self.status.set(status_string)
                 
         imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
@@ -633,7 +644,7 @@ class Controller(tk.Frame):
             self.refresh_plot()
             self.tick_counter += 1
             if self.tick_counter > 2 and self.info_frame != None: #if 10 ticks passed update results window
-                self.info_frame.refresh_frame(self)
+                self.info_frame.refresh_frame() #need to fix this line. but how?
                 self.tick_counter = 0
             self.plot_time = time.time() #update plot time info
             
@@ -718,7 +729,7 @@ class Controller(tk.Frame):
         if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
         output = np.column_stack((self.running_time.flatten(),self.centroid_hist_x.flatten(),self.centroid_hist_y.flatten(),self.peak_hist_x.flatten(),self.peak_hist_y.flatten()))
-        np.savetxt('output.csv',output,delimiter=',',header='Laser Beam Profiler Data Export. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y')
+        np.savetxt('output.csv',output,delimiter=',',header='BiLBA Data Export. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y')
     
     def calc_results(self):
         '''Opens calculation results window'''
@@ -764,27 +775,27 @@ class Controller(tk.Frame):
             for button in removedbuttons:
                 button[0].destroy()
                 self.toolbarbuttons.remove(button)
-        self.update_toolbar() #now add buttons that have been requested
-                
-    def update_toolbar(self):
-        '''Adds buttons to the toolbar that have been chosen'''
         newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
-        for button in newbuttons:
-            if button.lower() in self.toolbaractions.keys():
-                if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'clear windows']:
-                    if self.toolbaractions[button.lower()][0] == 'view_log':
-                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=self.view_log), button])
-                    elif self.toolbaractions[button.lower()][0] == 'clear windows':
-                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message")), button])
-                    if self.toolbaractions[button.lower()][0] == 'inc_exp':
-                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(1)), button])
-                    elif self.toolbaractions[button.lower()][0] == 'dec_exp':
-                        self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(-1)), button])
-                else: 
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
+        for button in newbuttons: #need for loop or commands get overwritten..?
+            self.update_toolbar(button) #now add buttons that have been requested
+                
+    def update_toolbar(self, button):
+        '''Adds buttons to the toolbar that have been chosen'''
+        if button.lower() in self.toolbaractions.keys():
+            if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'clear windows']:
+                if self.toolbaractions[button.lower()][0] == 'view_log':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=self.view_log), button])
+                elif self.toolbaractions[button.lower()][0] == 'clear windows':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message")), button])
+                elif self.toolbaractions[button.lower()][0] == 'inc_exp':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(1)), button])
+                elif self.toolbaractions[button.lower()][0] == 'dec_exp':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(-1)), button])
             else:
-                self.toolbarbuttons.append([tk.Button(self.toolbar, text=button), button])
-            self.toolbarbuttons[-1][0].pack(side=tk.LEFT, padx=2, pady=2)
+                self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
+        else:
+            self.toolbarbuttons.append([tk.Button(self.toolbar, text=button), button])
+        self.toolbarbuttons[-1][0].pack(side=tk.LEFT, padx=2, pady=2)
         
     def pass_fail_testing(self):
         '''Sets off alarm if pass/fail test criteria are not met.'''
@@ -793,35 +804,38 @@ class Controller(tk.Frame):
             if index == 0:
                 if self.beam_width is not None:
                     y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
-                    if self.beam_width[0] <= float(x_lower[5:]) or self.beam_width[0] >= float(x_upper[5:]) or self.beam_width[1] <= y_lower or self.beam_width[1] >= y_upper:
+                    if self.beam_width[0]*self.pixel_scale <= float(x_lower[5:]) or self.beam_width[0]*self.pixel_scale >= float(x_upper[5:]) or self.beam_width[1]*self.pixel_scale <= y_lower or self.beam_width[1]*self.pixel_scale >= y_upper:
                         self.alert("Pass/Fail Test", "Beam Width has failed to meet criteria!")
                         self.raw_passfail[index] = 'False' #reset value
-                        self.info_frame.refresh_frame(self)
+                        self.info_frame.refresh_frame()
             if index == 1:
                 if self.beam_diameter is not None:
-                    if self.beam_diameter <= x_lower or self.beam_diameter >= x_upper:
+                    if self.beam_diameter*self.pixel_scale <= x_lower or self.beam_diameter*self.pixel_scale >= x_upper:
                         self.alert("Pass/Fail Test", "Beam Diameter has failed to meet criteria!")
                         self.raw_passfail[index] = 'False' #reset value
-                        self.info_frame.refresh_frame(self)
+                        self.info_frame.refresh_frame()
             if index == 2:
                 if np.max(self.analysis_frame) >= x_upper or np.max(self.analysis_frame) <= x_lower:
                     self.alert("Pass/Fail Test", "Peak Pixel Value has failed to meet criteria!")
                     self.raw_passfail[index] = 'False' #reset value
-                    self.info_frame.refresh_frame(self)
+                    self.info_frame.refresh_frame()
             if index == 3:
                 if self.peak_cross is not None:
                     y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
-                    if self.peak_cross[0] <= float(x_lower[5:]) or self.peak_cross[0] >= float(x_upper[5:]) or self.peak_cross[1] <= y_lower or self.peak_cross[1] >= y_upper:
+                    if self.peak_cross[0]*self.pixel_scale <= float(x_lower[5:]) or self.peak_cross[0]*self.pixel_scale >= float(x_upper[5:]) or self.peak_cross[1]*self.pixel_scale <= y_lower or self.peak_cross[1]*self.pixel_scale >= y_upper:
+                            print bool(self.peak_cross[0]*self.pixel_scale <= float(x_lower[5:]))
+                            print bool(self.peak_cross[0]*self.pixel_scale >= float(x_upper[5:]))
+                            print type(self.pixel_scale)
                             self.alert("Pass/Fail Test", "Peak Position has failed to meet criteria!")
                             self.raw_passfail[index] = 'False' #reset value
-                            self.info_frame.refresh_frame(self)
+                            self.info_frame.refresh_frame()
             if index == 4:
                 if self.centroid is not None:
                     y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
-                    if self.centroid[0] <= float(x_lower[5:]) or self.centroid[0] >= float(x_upper[5:]) or self.centroid[1] <= y_lower or self.centroid[1] >= y_upper:
+                    if self.centroid[0]*self.pixel_scale <= float(x_lower[5:]) or self.centroid[0]*self.pixel_scale >= float(x_upper[5:]) or self.centroid[1]*self.pixel_scale <= y_lower or self.centroid[1]*self.pixel_scale >= y_upper:
                             self.alert("Pass/Fail Test", "Centroid Position has failed to meet criteria!")
                             self.raw_passfail[index] = 'False' #reset value
-                            self.info_frame.refresh_frame(self)
+                            self.info_frame.refresh_frame()
             if index == 5:
                 print 'check total power'
                                
@@ -833,22 +847,22 @@ class Controller(tk.Frame):
                     if self.MA <= y_lower or self.MA >= y_upper:
                         self.alert("Pass/Fail Test", "Ellipse axes have failed to meet criteria!")
                         self.ellipse_passfail[index] = 'False'
-                        self.info_frame.refresh_frame(self)
+                        self.info_frame.refresh_frame()
             if index == 1:
                 if self.ellipticity <= x_lower or self.ellipticity >= x_upper:
                     self.alert("Pass/Fail Test", "Ellipticity has failed to meet criteria!")
                     self.ellipse_passfail[index] = 'False'
-                    self.info_frame.refresh_frame(self)
+                    self.info_frame.refresh_frame()
             if index == 2:
                 if self.eccentricity <= x_lower or self.eccentricity >= x_upper:
                     self.alert("Pass/Fail Test", "Eccentricity has failed to meet criteria!")
                     self.ellipse_passfail[index] = 'False'
-                    self.info_frame.refresh_frame(self)
+                    self.info_frame.refresh_frame()
             if index == 3:
                 if self.ellipse_angle <= x_lower or self.ellipse_angle >= x_upper:
                     self.alert("Pass/Fail Test", "Ellipse orientation has failed to meet criteria!")
                     self.ellipse_passfail[index] = 'False'
-                    self.info_frame.refresh_frame(self)
+                    self.info_frame.refresh_frame()
 
     def alert(self, title, text):
         '''Makes a sound and shows alert window'''
@@ -923,6 +937,15 @@ class Controller(tk.Frame):
                 break
         return n
             
+    def TrueFalse(self, x):
+        if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan' and x is not False:
+            if self.active:
+                return 'ACTIVE'
+            else:
+                return 'INACTIVE'
+        else:
+            return 'INACTIVE'
+            
 def on_closing():
         '''Closes the GUI.'''
         root.quit()
@@ -930,11 +953,6 @@ def on_closing():
         control.cap.release()
         cv2.destroyAllWindows()
         
-def TrueFalse(x):
-    if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan' and x is not False:
-        return 'ACTIVE'
-    else:
-        return 'INACTIVE'
         
 control = Controller(root)
 control.pack()

@@ -132,14 +132,15 @@ class Config(tkSimpleDialog.Dialog):
                     config.set(section[val], val, sett)    
                 with open('config.ini', 'w') as configfile:
                     config.write(configfile)
-                self.master.log('Written new values to config.ini')
+                self.master.log('Written new config values to config.ini')
 
     def close(self):
         self.destroy()
         
 class InfoFrame(tk.Frame):
     def __init__(self, parent):
-        self.window = tk.Toplevel(parent)
+        self.parent = parent
+        self.window = tk.Toplevel(self.parent)
         self.window.minsize(200,350)
         
         self.passfail_frame = None
@@ -162,124 +163,123 @@ class InfoFrame(tk.Frame):
         self.tree.heading("#7", text='Max.', anchor=tk.W)
         self.tree.column("#7",  minwidth=0, width=65, stretch=1)
 
-        if parent.beam_width is None:
-            parent.beam_width = (np.nan, np.nan)
-        if parent.peak_cross is None: 
-            parent.peak_cross = (np.nan, np.nan)
-        if parent.centroid is None:
-            parent.centroid = (np.nan, np.nan)
+        if self.parent.beam_width is None:
+            self.parent.beam_width = (np.nan, np.nan)
+        if self.parent.peak_cross is None: 
+            self.parent.peak_cross = (np.nan, np.nan)
+        if self.parent.centroid is None:
+            self.parent.centroid = (np.nan, np.nan)
             
-        self.pixel_scale = parent.pixel_scale #get pixel scale conversion
+        self.pixel_scale = self.parent.pixel_scale #get pixel scale conversion
         self.raw_rows = ["Beam Width (D4σ)", "Beam Diameter (D4σ)", "Peak Pixel Value", "Peak Position", "Centroid Position", "Power Density"]
         self.raw_units = ["µm","µm"," ","µm","µm","W/µm²"]
         square = lambda x: x**2 if x is not None else np.nan
-        self.raw_values = ['(' + self.info_format(parent.beam_width[0], convert=True) + ', ' + self.info_format(parent.beam_width[1], convert=True) + ')', self.info_format(parent.beam_diameter, convert=True), self.info_format(np.max(parent.analysis_frame)), '(' + self.info_format(parent.peak_cross[0], convert=True) + ', ' + self.info_format(parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(parent.centroid[0], convert=True) + ', ' + self.info_format(parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(parent.beam_diameter))*parent.power)]
+        self.raw_values = ['(' + self.info_format(self.parent.beam_width[0], convert=True) + ', ' + self.info_format(self.parent.beam_width[1], convert=True) + ')', self.info_format(self.parent.beam_diameter, convert=True), self.info_format(np.max(self.parent.analysis_frame)), '(' + self.info_format(self.parent.peak_cross[0], convert=True) + ', ' + self.info_format(self.parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(self.parent.centroid[0], convert=True) + ', ' + self.info_format(self.parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(self.parent.beam_diameter))*self.parent.power)]
         self.ellipse_rows = ["Ellipse axes", "Ellipticity", "Eccentricity", "Orientation"]
         self.ellipse_units = ["µm", " ", " ", "deg"]
-        self.ellipse_values = ['(' + self.info_format(parent.MA, convert=True) + ', ' + self.info_format(parent.ma, convert=True) + ')', self.info_format(parent.ellipticity), self.info_format(parent.eccentricity), self.info_format(parent.ellipse_angle)]
+        self.ellipse_values = ['(' + self.info_format(self.parent.MA, convert=True) + ', ' + self.info_format(self.parent.ma, convert=True) + ')', self.info_format(self.parent.ellipticity), self.info_format(self.parent.eccentricity), self.info_format(self.parent.ellipse_angle)]
                           
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], parent.raw_passfail[i], parent.raw_xbounds[i][0], parent.raw_xbounds[i][1], parent.raw_ybounds[i][0], parent.raw_ybounds[i][1]))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.parent.raw_passfail[i], self.parent.raw_xbounds[i][0], self.parent.raw_xbounds[i][1], self.parent.raw_ybounds[i][0], self.parent.raw_ybounds[i][1]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], parent.ellipse_passfail[i], parent.ellipse_xbounds[i][0], parent.ellipse_xbounds[i][1], parent.ellipse_ybounds[i][0], parent.ellipse_ybounds[i][1]))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.parent.ellipse_passfail[i], self.parent.ellipse_xbounds[i][0], self.parent.ellipse_xbounds[i][1], self.parent.ellipse_ybounds[i][0], self.parent.ellipse_ybounds[i][1]))
         self.tree.see("23")
         
         self.tree.pack(expand=True,fill=tk.BOTH)
         
-        button_refresh = tk.Button(self.window, text="refresh", command=lambda: self.refresh_frame(parent))
+        button_refresh = tk.Button(self.window, text="refresh", command=lambda: self.refresh_frame())
         button_refresh.pack(padx=5, pady=20, side=tk.LEFT)
-        button_pf = tk.Button(self.window, text="toggle pass/fail test", command=lambda: self.pass_fail(parent))
+        button_pf = tk.Button(self.window, text="toggle pass/fail test", command=lambda: self.pass_fail())
         button_pf.pack(padx=5, pady=20, side=tk.LEFT)
-        button_edit = tk.Button(self.window, text="edit", command=lambda: self.edit(parent))
+        button_edit = tk.Button(self.window, text="edit", command=lambda: self.edit())
         button_edit.pack(padx=5, pady=20, side=tk.LEFT)
-        self.refresh_frame(parent)
+        self.refresh_frame()
     
-    def refresh_frame(self, parent):
-
-        self.curr_item = self.tree.focus()
+    def refresh_frame(self):
+        self.curr_item = self.tree.focus() #problem because widget doesnt exist anymore
         
-        if parent.beam_width is None:
-            parent.beam_width = (np.nan, np.nan)
-        if parent.peak_cross is None: 
-            parent.peak_cross = (np.nan, np.nan)
-        if parent.centroid is None:
-            parent.centroid = (np.nan, np.nan)
+        if self.parent.beam_width is None:
+            self.parent.beam_width = (np.nan, np.nan)
+        if self.parent.peak_cross is None: 
+            self.parent.peak_cross = (np.nan, np.nan)
+        if self.parent.centroid is None:
+            self.parent.centroid = (np.nan, np.nan)
             
         square = lambda x: x**2 if x is not None else np.nan #3e-15 power dens before sat
-        self.raw_values = ['(' + self.info_format(parent.beam_width[0], convert=True) + ', ' + self.info_format(parent.beam_width[1], convert=True) + ')', self.info_format(parent.beam_diameter, convert=True), self.info_format(np.max(parent.analysis_frame)), '(' + self.info_format(parent.peak_cross[0], convert=True) + ', ' + self.info_format(parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(parent.centroid[0], convert=True) + ', ' + self.info_format(parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(parent.beam_diameter))*parent.power)]
-        self.ellipse_values = ['(' + self.info_format(parent.MA, convert=True) + ', ' + self.info_format(parent.ma, convert=True) + ')', self.info_format(parent.ellipticity), self.info_format(parent.eccentricity), self.info_format(parent.ellipse_angle)]
+        self.raw_values = ['(' + self.info_format(self.parent.beam_width[0], convert=True) + ', ' + self.info_format(self.parent.beam_width[1], convert=True) + ')', self.info_format(self.parent.beam_diameter, convert=True), self.info_format(np.max(self.parent.analysis_frame)), '(' + self.info_format(self.parent.peak_cross[0], convert=True) + ', ' + self.info_format(self.parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(self.parent.centroid[0], convert=True) + ', ' + self.info_format(self.parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(self.parent.beam_diameter))*self.parent.power)]
+        self.ellipse_values = ['(' + self.info_format(self.parent.MA, convert=True) + ', ' + self.info_format(self.parent.ma, convert=True) + ')', self.info_format(self.parent.ellipticity), self.info_format(self.parent.eccentricity), self.info_format(self.parent.ellipse_angle)]
 
         self.tree.delete(*self.tree.get_children())
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], parent.raw_passfail[i], parent.raw_xbounds[i][0], parent.raw_xbounds[i][1], parent.raw_ybounds[i][0], parent.raw_ybounds[i][1]))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.parent.raw_passfail[i], self.parent.raw_xbounds[i][0], self.parent.raw_xbounds[i][1], self.parent.raw_ybounds[i][0], self.parent.raw_ybounds[i][1]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], parent.ellipse_passfail[i], parent.ellipse_xbounds[i][0], parent.ellipse_xbounds[i][1], parent.ellipse_ybounds[i][0], parent.ellipse_ybounds[i][1]))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.parent.ellipse_passfail[i], self.parent.ellipse_xbounds[i][0], self.parent.ellipse_xbounds[i][1], self.parent.ellipse_ybounds[i][0], self.parent.ellipse_ybounds[i][1]))
         self.tree.see("23")
 
         self.tree.selection_set(self.curr_item)
         self.tree.focus(self.curr_item)
         
-    def pass_fail(self, parent):
+    def pass_fail(self):
         selected_item = self.tree.selection()
         if len(selected_item) == 1:
             if len(str(selected_item[0])) == 2:
                 index, row_num = map(int,str(selected_item[0]))
                 print 'toggling pass/fail state'
                 if index == 1:
-                    if parent.raw_passfail[row_num] == 'True':
-                        parent.raw_passfail[row_num] = 'False'
+                    if self.parent.raw_passfail[row_num] == 'True':
+                        self.parent.raw_passfail[row_num] = 'False'
                     else:
-                        parent.raw_passfail[row_num] = 'True'
+                        self.parent.raw_passfail[row_num] = 'True'
                 elif index == 2:
-                    if parent.ellipse_passfail[row_num] == 'True':
-                        parent.ellipse_passfail[row_num] = 'False'
+                    if self.parent.ellipse_passfail[row_num] == 'True':
+                        self.parent.ellipse_passfail[row_num] = 'False'
                     else:
-                        parent.ellipse_passfail[row_num] = 'True'
-                self.refresh_frame(parent)
+                        self.parent.ellipse_passfail[row_num] = 'True'
+                self.refresh_frame()
             
-    def edit(self, parent):
+    def edit(self):
         selected_item = self.tree.selection()
         if len(selected_item) == 1:
             if len(str(selected_item[0])) == 2:
                 index, row_num = map(int,str(selected_item[0]))
                 if index == 1:
-                    if parent.raw_ybounds[row_num] != (' ', ' '):
+                    if self.parent.raw_ybounds[row_num] != (' ', ' '):
                         print 'getting x and y bounds'
-                        passfailbounds = self.change_pass_fail(parent, True, (parent.raw_xbounds[row_num], parent.raw_ybounds[row_num])) #get x and y bounds
+                        passfailbounds = self.change_pass_fail(True, (self.parent.raw_xbounds[row_num], self.parent.raw_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
-                            parent.raw_xbounds[row_num] = (parent.raw_xbounds[row_num][0][:5] + passfailbounds[0], parent.raw_xbounds[row_num][1][:5] + passfailbounds[1])
-                            parent.raw_ybounds[row_num] = (parent.raw_ybounds[row_num][0][:5] + passfailbounds[2], parent.raw_ybounds[row_num][1][:5] + passfailbounds[3])
+                            self.parent.raw_xbounds[row_num] = (self.parent.raw_xbounds[row_num][0][:5] + passfailbounds[0], self.parent.raw_xbounds[row_num][1][:5] + passfailbounds[1])
+                            self.parent.raw_ybounds[row_num] = (self.parent.raw_ybounds[row_num][0][:5] + passfailbounds[2], self.parent.raw_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
                         print 'getting x bounds'
-                        passfailbounds = self.change_pass_fail(parent, False, parent.raw_xbounds[row_num]) #get just x bounds
+                        passfailbounds = self.change_pass_fail(False, self.parent.raw_xbounds[row_num]) #get just x bounds
                         if passfailbounds is not None:
-                            parent.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
+                            self.parent.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
                 elif index == 2:
-                    if parent.ellipse_ybounds[row_num] != (' ', ' '):
+                    if self.parent.ellipse_ybounds[row_num] != (' ', ' '):
                         print 'getting x and y bounds'
-                        passfailbounds = self.change_pass_fail(parent, True, (parent.ellipse_xbounds[row_num], parent.ellipse_ybounds[row_num])) #get x and y bounds
+                        passfailbounds = self.change_pass_fail(True, (self.parent.ellipse_xbounds[row_num], self.parent.ellipse_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
-                            parent.ellipse_xbounds[row_num] = (parent.ellipse_xbounds[row_num][0][:5] + passfailbounds[0], parent.ellipse_xbounds[row_num][1][:5] + passfailbounds[1])
-                            parent.ellipse_ybounds[row_num] = (parent.ellipse_ybounds[row_num][0][:5] + passfailbounds[2], parent.ellipse_ybounds[row_num][1][:5] + passfailbounds[3])
+                            self.parent.ellipse_xbounds[row_num] = (self.parent.ellipse_xbounds[row_num][0][:5] + passfailbounds[0], self.parent.ellipse_xbounds[row_num][1][:5] + passfailbounds[1])
+                            self.parent.ellipse_ybounds[row_num] = (self.parent.ellipse_ybounds[row_num][0][:5] + passfailbounds[2], self.parent.ellipse_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
                         print 'getting x bounds'
-                        passfailbounds = self.change_pass_fail(parent, False, parent.ellipse_xbounds[row_num]) #get just x bounds
+                        passfailbounds = self.change_pass_fail(False, self.parent.ellipse_xbounds[row_num]) #get just x bounds
                         if passfailbounds is not None:
-                            parent.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
+                            self.parent.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
 
-                self.refresh_frame(parent)
+                self.refresh_frame()
                     
-    def change_pass_fail(self, parent, manyopt, bounds):
+    def change_pass_fail(self, manyopt, bounds):
         '''Opens passfail window'''
         if self.passfail_frame != None:
             self.passfail_frame.close()
-        self.passfail_frame = PassFailDialogue(parent, manyopt, bounds)
+        self.passfail_frame = PassFailDialogue(self.parent, manyopt, bounds)
         if self.passfail_frame.result is not None:
             return self.passfail_frame.result
             
@@ -424,9 +424,23 @@ class ToolbarConfig(tkSimpleDialog.Dialog):
                 dummy1.set(0)
             dummy2 = tk.Checkbutton(self, text=i, variable=dummy1).pack(side=tk.TOP, padx=2, pady=2)
             self.dummies1.append(dummy1)
+        button_save = tk.Button(self, text="Save toolbar config", command=self.save_config)
+        button_save.pack()
         
-    def apply(self):
+    def validate(self):
         self.result = self.dummies1
+        return 1
+        
+    def save_config(self):
+        config = ConfigParser.ConfigParser()
+        
+        if self.dummies1 is not None:
+            choices = [self.options[i] for i,j in enumerate(self.dummies1) if j.get() == 1]
+            if config.read("config.ini") != []:
+                config.set('Toolbar', 'buttons', ', '.join(choices))    
+                with open('config.ini', 'w') as configfile:
+                    config.write(configfile)
+                self.master.log('Written new toolbar values to config.ini')
         
     def close(self):
         self.destroy()
