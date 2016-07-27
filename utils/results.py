@@ -89,7 +89,7 @@ class MainWindow(tk.Frame):
         self.windowx, self.windowy = self.w, 0
         self.windows, self.instances, self.vacancies = [], [], []
                 
-class NewWindow(tk.Frame):
+class NewWindow():
     def __init__(self, parent, x, y):
         self.window = tk.Toplevel(parent)
         
@@ -120,11 +120,11 @@ class NewWindow(tk.Frame):
         self.window.destroy()
         
 class WebcamView(NewWindow):
-    def __init__(self, parent):
+    def __init__(self, parent, counter):
     
         self.parent = parent
         
-        self.counter  = 0
+        self.counter = counter
 
         # get screen width and height
         self.ws = parent.winfo_screenwidth() # width of the screen

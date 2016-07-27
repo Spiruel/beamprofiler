@@ -109,6 +109,8 @@ class Controller(tk.Frame):
         
         self.statusbar = tk.Frame(self.parent)
         self.progress = interface.Progress(self)
+
+	self.webcam_counter = 0;
         
         self.read_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
 
@@ -756,7 +758,8 @@ class Controller(tk.Frame):
         # if self.systemlog_frame != None:
             # self.systemlog_frame.close()
         from utils import results
-        self.webcam_frame = results.WebcamView(self)
+        self.webcam_frame = results.WebcamView(self, self.webcam_counter)
+	self.webcam_counter += 1
             
     def change_toolbar(self):
         '''Opens Toolbar Settings'''
