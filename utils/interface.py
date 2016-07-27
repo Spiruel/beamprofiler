@@ -178,14 +178,39 @@ class InfoFrame(tk.Frame):
         self.ellipse_rows = ["Ellipse axes", "Ellipticity", "Eccentricity", "Orientation"]
         self.ellipse_units = ["µm", " ", " ", "deg"]
         self.ellipse_values = ['(' + self.info_format(self.parent.MA, convert=True) + ', ' + self.info_format(self.parent.ma, convert=True) + ')', self.info_format(self.parent.ellipticity), self.info_format(self.parent.eccentricity), self.info_format(self.parent.ellipse_angle)]
-                          
+                  
+        self.raw_xbounds = [('x ≥ 0.00', 'x ≤ 0.00'), #for pass/fail testing
+                        ('0.00', '0.00'),
+                        ('0.00', '255.00'),
+                        ('x ≥ 0.00', 'x ≤ ' + '{0:.2f}'.format(self.parent.width*self.parent.pixel_scale)),
+                        ('x ≥ 0.00', 'x ≤ ' + '{0:.2f}'.format(self.parent.width*self.parent.pixel_scale)),
+                        ('0.00', '0.00')
+                        ]
+        self.ellipse_xbounds = [('M ≥ 0.00', 'M ≤ 0.00'),
+                        ('0.00', '1.00'),
+                        ('0.00', '1.00'),
+                        ('0.00', '360.00')
+                        ]
+        self.raw_ybounds = [('y ≥ 0.00', 'y ≤ 0.00'),
+                        (' ', ' '),
+                        (' ', ' '),
+                        ('y ≥ 0.00', 'y ≤ ' + '{0:.2f}'.format(self.parent.height*self.parent.pixel_scale)),
+                        ('y ≥ 0.00', 'y ≤ ' + '{0:.2f}'.format(self.parent.height*self.parent.pixel_scale)),
+                        (' ', ' ')
+                        ]
+        self.ellipse_ybounds = [('m ≥ 0.00', 'm ≤ 0.00'),
+                        (' ', ' '),
+                        (' ', ' '),
+                        (' ', ' ')
+                        ]
+                        
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.parent.raw_passfail[i], self.parent.raw_xbounds[i][0], self.parent.raw_xbounds[i][1], self.parent.raw_ybounds[i][0], self.parent.raw_ybounds[i][1]))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.parent.raw_passfail[i], self.raw_xbounds[i][0], self.raw_xbounds[i][1], self.raw_ybounds[i][0], self.raw_ybounds[i][1]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.parent.ellipse_passfail[i], self.parent.ellipse_xbounds[i][0], self.parent.ellipse_xbounds[i][1], self.parent.ellipse_ybounds[i][0], self.parent.ellipse_ybounds[i][1]))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.parent.ellipse_passfail[i], self.ellipse_xbounds[i][0], self.ellipse_xbounds[i][1], self.ellipse_ybounds[i][0], self.ellipse_ybounds[i][1]))
         self.tree.see("23")
         
         self.tree.pack(expand=True,fill=tk.BOTH)
@@ -215,11 +240,11 @@ class InfoFrame(tk.Frame):
         self.tree.delete(*self.tree.get_children())
         self.tree.insert("",iid="1", index="end",text="Raw Data Measurement")
         for i in range(len(self.raw_rows)):
-            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.parent.raw_passfail[i], self.parent.raw_xbounds[i][0], self.parent.raw_xbounds[i][1], self.parent.raw_ybounds[i][0], self.parent.raw_ybounds[i][1]))
+            self.tree.insert("1",iid="1"+str(i), index="end", text=self.raw_rows[i], value=(self.raw_units[i], self.raw_values[i], self.parent.raw_passfail[i], self.raw_xbounds[i][0], self.raw_xbounds[i][1], self.raw_ybounds[i][0], self.raw_ybounds[i][1]))
         self.tree.see("14")
         self.tree.insert("",iid="2", index="end",text="Ellipse (fitted)")
         for i in range(len(self.ellipse_rows)):
-            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.parent.ellipse_passfail[i], self.parent.ellipse_xbounds[i][0], self.parent.ellipse_xbounds[i][1], self.parent.ellipse_ybounds[i][0], self.parent.ellipse_ybounds[i][1]))
+            self.tree.insert("2",iid="2"+str(i), index="end", text=self.ellipse_rows[i], value=(self.ellipse_units[i], self.ellipse_values[i], self.parent.ellipse_passfail[i], self.ellipse_xbounds[i][0], self.ellipse_xbounds[i][1], self.ellipse_ybounds[i][0], self.ellipse_ybounds[i][1]))
         self.tree.see("23")
 
         self.tree.selection_set(self.curr_item)
@@ -249,29 +274,29 @@ class InfoFrame(tk.Frame):
             if len(str(selected_item[0])) == 2:
                 index, row_num = map(int,str(selected_item[0]))
                 if index == 1:
-                    if self.parent.raw_ybounds[row_num] != (' ', ' '):
+                    if self.raw_ybounds[row_num] != (' ', ' '):
                         print 'getting x and y bounds'
-                        passfailbounds = self.change_pass_fail(True, (self.parent.raw_xbounds[row_num], self.parent.raw_ybounds[row_num])) #get x and y bounds
+                        passfailbounds = self.change_pass_fail(True, (self.raw_xbounds[row_num], self.raw_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
-                            self.parent.raw_xbounds[row_num] = (self.parent.raw_xbounds[row_num][0][:5] + passfailbounds[0], self.parent.raw_xbounds[row_num][1][:5] + passfailbounds[1])
-                            self.parent.raw_ybounds[row_num] = (self.parent.raw_ybounds[row_num][0][:5] + passfailbounds[2], self.parent.raw_ybounds[row_num][1][:5] + passfailbounds[3])
+                            self.raw_xbounds[row_num] = (self.raw_xbounds[row_num][0][:5] + passfailbounds[0], self.raw_xbounds[row_num][1][:5] + passfailbounds[1])
+                            self.raw_ybounds[row_num] = (self.raw_ybounds[row_num][0][:5] + passfailbounds[2], self.raw_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
                         print 'getting x bounds'
-                        passfailbounds = self.change_pass_fail(False, self.parent.raw_xbounds[row_num]) #get just x bounds
+                        passfailbounds = self.change_pass_fail(False, self.raw_xbounds[row_num]) #get just x bounds
                         if passfailbounds is not None:
-                            self.parent.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
+                            self.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
                 elif index == 2:
-                    if self.parent.ellipse_ybounds[row_num] != (' ', ' '):
+                    if self.ellipse_ybounds[row_num] != (' ', ' '):
                         print 'getting x and y bounds'
-                        passfailbounds = self.change_pass_fail(True, (self.parent.ellipse_xbounds[row_num], self.parent.ellipse_ybounds[row_num])) #get x and y bounds
+                        passfailbounds = self.change_pass_fail(True, (self.ellipse_xbounds[row_num], self.ellipse_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
-                            self.parent.ellipse_xbounds[row_num] = (self.parent.ellipse_xbounds[row_num][0][:5] + passfailbounds[0], self.parent.ellipse_xbounds[row_num][1][:5] + passfailbounds[1])
-                            self.parent.ellipse_ybounds[row_num] = (self.parent.ellipse_ybounds[row_num][0][:5] + passfailbounds[2], self.parent.ellipse_ybounds[row_num][1][:5] + passfailbounds[3])
+                            self.ellipse_xbounds[row_num] = (self.ellipse_xbounds[row_num][0][:5] + passfailbounds[0], self.ellipse_xbounds[row_num][1][:5] + passfailbounds[1])
+                            self.ellipse_ybounds[row_num] = (self.ellipse_ybounds[row_num][0][:5] + passfailbounds[2], self.ellipse_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
                         print 'getting x bounds'
-                        passfailbounds = self.change_pass_fail(False, self.parent.ellipse_xbounds[row_num]) #get just x bounds
+                        passfailbounds = self.change_pass_fail(False, self.ellipse_xbounds[row_num]) #get just x bounds
                         if passfailbounds is not None:
-                            self.parent.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
+                            self.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
 
                 self.refresh_frame()
                     
@@ -453,24 +478,26 @@ class Progress(tk.Frame):
         self.progressbar.pack(side=tk.RIGHT, padx=5)
         
     def next_step(self):
-        self.v.set(0)
-        # Create a numpy array of floats to store the average (assume RGB images)
-        arr = np.zeros(self.parent.frame.shape, np.float)
-        for i in range(100):
+        if self.parent.bg_subtract == 1:
+            self.v.set(0)
+            # Create a numpy self.array of floats to store the average (assume RGB images)
+            self.arr = np.zeros(self.parent.frame.shape, np.float)
+        if self.parent.bg_subtract >= 1:   
             imarr = np.array(self.parent.frame,dtype=np.float)
-            arr = arr+imarr/100
+            self.arr = self.arr+imarr/100
             self.progressbar.step(1)
             time.sleep(0.01)
+            self.parent.bg_subtract += 1
+        if self.parent.bg_subtract == 100:
+            # Round values in self.array and cast as 16-bit integer
+            self.parent.bg_frame = np.array(np.round(self.arr),dtype=np.uint8)
 
-        # Round values in array and cast as 16-bit integer
-        self.parent.bg_frame = np.array(np.round(arr),dtype=np.uint8)
-
-        self.parent.log('Background calibration complete')
-        self.v.set(0)
+            self.parent.log('Background calibration complete')
+            self.v.set(0)
+            self.parent.bg_subtract = 0
         
     def calibrate_bg(self):
-        t1=threading.Thread(target=self.next_step)
-        t1.start()
+        self.parent.bg_subtract = 1
         
     def reset_bg(self):
         self.parent.bg_frame = 0

@@ -84,36 +84,15 @@ class Controller(tk.Frame):
         self.plot_tick = 0.1 #refresh rate of plots in sec
         self.pixel_scale = 5.6 #default pixel scale of webcam in um
         
+        self.width, self.height  = 1,1
+        # self.stream = output.SoundFeedback(self)
+                
         self.analysis_frame = None
         self.analyse = analysis.Analyse(self) #creates instance for analysis routines
         self.analyse.start()
         
         self.raw_passfail = ['False'] * 6
-        self.ellipse_passfail = ['False'] * 4
-        self.raw_xbounds = [('x ≥ 0.00', 'x ≤ 0.00'), #for pass/fail testing
-                        ('0.00', '0.00'),
-                        ('0.00', '0.00'),
-                        ('x ≥ 0.00', 'x ≤ 0.00'),
-                        ('x ≥ 0.00', 'x ≤ 0.00'),
-                        ('0.00', '0.00')
-                        ]
-        self.ellipse_xbounds = [('M ≥ 0.00', 'M ≤ 0.00'),
-                        ('0.00', '1.00'),
-                        ('0.00', '1.00'),
-                        ('0.00', '360.00')
-                        ]
-        self.raw_ybounds = [('y ≥ 0.00', 'y ≤ 0.00'),
-                        (' ', ' '),
-                        (' ', ' '),
-                        ('y ≥ 0.00', 'y ≤ 0.00'),
-                        ('y ≥ 0.00', 'y ≤ 0.00'),
-                        (' ', ' ')
-                        ]
-        self.ellipse_ybounds = [('m ≥ 0.00', 'm ≤ 0.00'),
-                        (' ', ' '),
-                        (' ', ' '),
-                        (' ', ' ')
-                        ]
+        self.ellipse_passfail = ['False'] * 4   
                         
         self.info_frame = None
         self.config_frame = None
@@ -122,6 +101,7 @@ class Controller(tk.Frame):
         self.toolbarconfig_frame = None
         
         self.bg_frame = 0
+        self.bg_subtract = 0
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
@@ -134,13 +114,13 @@ class Controller(tk.Frame):
 
         # **** Status Bar ****
         self.status = tk.StringVar()
-        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross))
+        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
         self.status.set(status_string)
         status_label = tk.Label(self.statusbar, textvariable=self.status, width = 65, pady = 5, anchor=tk.W)
         status_label.pack(side=tk.BOTTOM, fill=tk.X)
         self.statusbar.pack(side=tk.BOTTOM, fill=tk.X)
 
-        self.parent.title('BiLBA')
+        self.parent.title('BiLBO')
         
         ###################################################################NAVBAR
         menubar = tk.Menu(self.parent)
@@ -207,7 +187,7 @@ class Controller(tk.Frame):
         menubar.add_cascade(label="Image", underline=0, menu=imageMenu)        
         
         helpmenu = tk.Menu(menubar, tearoff=1)
-        helpmenu.add_command(label="About", command=lambda: self.info_window("About", "BiBLA is a Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
+        helpmenu.add_command(label="About", command=lambda: self.info_window("About", "BiLBO (Birmingham Laser Beam Observer) is a Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
         menubar.add_cascade(label="Help", menu=helpmenu)
 
         self.parent.config(menu=menubar)
@@ -274,7 +254,12 @@ class Controller(tk.Frame):
         b = tk.Checkbutton(labelframe, text="Ellipse_orientation", command=lambda: self.toggle_graph('ellipse_orientation'), variable=self.var5)
         b.pack(fill=tk.BOTH)
         
-        b = tk.Button(labelframe, text="Sound", command=lambda: output.WavePlayerLoop(freq=440.*(self.peak_cross[0]/640.), length=10., volume=0.5).start())
+        # b = tk.Button(labelframe, text="Start Sound", command=lambda: self.stream.streamer.start_stream())
+        # b.pack(fill=tk.BOTH)
+        # b = tk.Button(labelframe, text="Stop Sound", command=lambda: self.stream.streamer.stop_stream())
+        # b.pack(fill=tk.BOTH)
+        
+        b = tk.Button(labelframe, text="Show Webcam", command=self.view_webcam)
         b.pack(fill=tk.BOTH)
         
         newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
@@ -354,8 +339,7 @@ class Controller(tk.Frame):
                 elif self.colourmap == 1:
                     cmap=plt.cm.bone
                 elif self.colourmap == 12:
-                    from utils import graphing
-                    cmap=graphing.parula_cm
+                    cmap=output.parula_cm
                 plt.imshow(img, cmap=cmap, interpolation='nearest', origin='lower')
                 
                 xs = np.arange(size)
@@ -543,8 +527,12 @@ class Controller(tk.Frame):
         _, frame = self.cap.read() #read camera input
 
         self.frame = frame
+        
+        if self.bg_subtract > 0:
+            self.progress.next_step()
+            
         frame = cv2.subtract(frame, self.bg_frame)
-
+         
         # frame = np.asarray(Image.open("output.png"))
         # frame = cv2.flip(frame, 1)
         if self.roi != 1: #apply region of interest scaling
@@ -573,10 +561,11 @@ class Controller(tk.Frame):
             peak_cross = self.analyse.find_peak()
             self.peak_cross = peak_cross
             
-            cross_size = 10
-            screen_peak_cross = peak_cross[0]*(self.width/640), peak_cross[1]*(self.height/360)
-            cv2.line(cv2image, (int(screen_peak_cross[0])-cross_size, int(screen_peak_cross[1])), (int(screen_peak_cross[0])+cross_size, int(screen_peak_cross[1])), 255, thickness=1)
-            cv2.line(cv2image, (int(screen_peak_cross[0]), int(screen_peak_cross[1])+cross_size), (int(screen_peak_cross[0]), int(screen_peak_cross[1])-cross_size), 255, thickness=1)
+            if peak_cross != (np.nan, np.nan):
+                cross_size = 10
+                screen_peak_cross = peak_cross[0]*(self.width/640), peak_cross[1]*(self.height/360)
+                cv2.line(cv2image, (int(screen_peak_cross[0])-cross_size, int(screen_peak_cross[1])), (int(screen_peak_cross[0])+cross_size, int(screen_peak_cross[1])), 255, thickness=1)
+                cv2.line(cv2image, (int(screen_peak_cross[0]), int(screen_peak_cross[1])+cross_size), (int(screen_peak_cross[0]), int(screen_peak_cross[1])-cross_size), 255, thickness=1)
                     
             centroid = self.analyse.get_centroid()
             if centroid != (np.nan, np.nan):
@@ -629,7 +618,7 @@ class Controller(tk.Frame):
             else:
                 self.beam_diameter = None
                 
-        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)))
+        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
         self.status.set(status_string)
                 
         imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
@@ -729,7 +718,7 @@ class Controller(tk.Frame):
         if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
         output = np.column_stack((self.running_time.flatten(),self.centroid_hist_x.flatten(),self.centroid_hist_y.flatten(),self.peak_hist_x.flatten(),self.peak_hist_y.flatten()))
-        np.savetxt('output.csv',output,delimiter=',',header='BiLBA Data Export. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y')
+        np.savetxt('output.csv',output,delimiter=',',header='BiLBO Data Export. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y')
     
     def calc_results(self):
         '''Opens calculation results window'''
@@ -761,6 +750,13 @@ class Controller(tk.Frame):
         if self.systemlog_frame != None:
             self.systemlog_frame.close()
         self.systemlog_frame = interface.SystemLog(self)
+        
+    def view_webcam(self):
+        '''Opens System Log'''
+        # if self.systemlog_frame != None:
+            # self.systemlog_frame.close()
+        from utils import results
+        self.webcam_frame = results.WebcamView(self)
             
     def change_toolbar(self):
         '''Opens Toolbar Settings'''
@@ -823,9 +819,6 @@ class Controller(tk.Frame):
                 if self.peak_cross is not None:
                     y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
                     if self.peak_cross[0]*self.pixel_scale <= float(x_lower[5:]) or self.peak_cross[0]*self.pixel_scale >= float(x_upper[5:]) or self.peak_cross[1]*self.pixel_scale <= y_lower or self.peak_cross[1]*self.pixel_scale >= y_upper:
-                            print bool(self.peak_cross[0]*self.pixel_scale <= float(x_lower[5:]))
-                            print bool(self.peak_cross[0]*self.pixel_scale >= float(x_upper[5:]))
-                            print type(self.pixel_scale)
                             self.alert("Pass/Fail Test", "Peak Position has failed to meet criteria!")
                             self.raw_passfail[index] = 'False' #reset value
                             self.info_frame.refresh_frame()
@@ -945,7 +938,7 @@ class Controller(tk.Frame):
                 return 'INACTIVE'
         else:
             return 'INACTIVE'
-            
+        
 def on_closing():
         '''Closes the GUI.'''
         root.quit()
@@ -953,7 +946,8 @@ def on_closing():
         control.cap.release()
         cv2.destroyAllWindows()
         
-        
+w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+root.geometry("%dx%d+0+0" % (w, h))
 control = Controller(root)
 control.pack()
 root.bind('<space>', lambda e: control.profiler_active(option=True))

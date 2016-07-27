@@ -233,6 +233,8 @@ class Analyse(threading.Thread):
         img = gaussian_filter(self.master.analysis_frame, 10, mode='constant')
         gray = cv2.GaussianBlur(img, (5,5), 0)
         (minVal, maxVal, minLoc, maxLoc) = cv2.minMaxLoc(gray)
+        if maxLoc == (0,0):
+            maxLoc = (np.nan, np.nan)
         return maxLoc
 
     def get_ellipse_coords(self, a=0.0, b=0.0, x=0.0, y=0.0, angle=0.0, k=2):

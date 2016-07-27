@@ -1,12 +1,12 @@
-# BiLBA (Birmingham Laser Beam Analyser)
+# BiLBO (Birmingham Laser Beam Observer)
 
-BiLBA is a laser beam analysis application written in Python and intended for use with cheap webcams.
+BiLBO is a laser beam analysis application written in Python and intended for use with cheap webcams.
 
-BiLBA interfaces with a webcam using OpenCV (Open Source Computer Vision Library) and uses Tkinter, Python's de-facto standard GUI (Graphical User Interface) package.
+BiLBO interfaces with a webcam using OpenCV (Open Source Computer Vision Library) and uses Tkinter, Python's de-facto standard GUI (Graphical User Interface) package.
 In the interests of making the code easy to use, libraries that are typical to most standard Python distributions were favoured. This includes the powerful scientific libraries such as Numpy and Scipy, as well as the plotting library Matplotlib.
 
 The purpose of this project is to produce an application that is both open-source, cross-platform, and designed for inexpensive hardware.
-Professional laser BiLBAs tend to be expensive, using patented algorithms with concealed methods.
+Professional laser BiLBOs tend to be expensive, using patented algorithms with concealed methods.
 When researchers release public data that use these methods, there is no way of knowing what was specifically measured.
 Because of this, it is important that this analysis software is made freely available and open-source for publicly-funded research.
 
@@ -14,13 +14,13 @@ Because of this, it is important that this analysis software is made freely avai
 
 ###Installation
 
-BiLBA may be installed using Pip. Simply install using, 
+BiLBO may be installed using Pip. Simply install using, 
 
 ```
 pip install BeamProfiler
 ```
 
-If you're reading this README from a source distribution, install BiLBA
+If you're reading this README from a source distribution, install BiLBO
 with:
 
 ```
@@ -35,7 +35,7 @@ Once successfully installed, simply run ```get_profile.py``` with a connected we
 
 ###Modifying the webcam
 
-BiLBA is compatible with any camera that works with the OpenCV library. This means almost all webcams and several other high-quality CCDs.
+BiLBO is compatible with any camera that works with the OpenCV library. This means almost all webcams and several other high-quality CCDs.
 
 There are a considerations that should be taken into account before using the application:
 
