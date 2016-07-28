@@ -1,11 +1,24 @@
 #!/usr/bin/python
 # -*- coding: latin-1 -*-
           
+from utils.results import WorkspaceManager
+from utils import analysis
+from utils import output
+from utils import interface
+
 import ConfigParser
 
-import Tkinter as tk
-import ttk
-import tkFileDialog, tkMessageBox
+try:
+    # for Python2
+    import Tkinter as tk
+    import ttk
+    import tkFileDialog, tkMessageBox
+except ImportError:
+    # for Python3
+    import tkinter as tk
+    import tkinter.ttk as ttk
+    from tkinter import messagebox as tkMessageBox
+    from tkinter import filedialog as tkFileDialog
 
 import cv2
 from PIL import Image, ImageTk
@@ -24,19 +37,19 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
-from utils import analysis
-from utils import output
-from utils import interface
-
 import threading
 
 root = tk.Tk()
-lmain = tk.Label(root)
-lmain.pack()
              
-class Controller(tk.Frame):
-    def __init__(self, parent=root):
+class Controller(tk.Frame, WorkspaceManager):
+    def __init__(self, parent):
         '''Initialises basic variables and GUI elements.'''
+        
+        self.lmain = tk.Label(parent)
+        self.lmain.pack()
+        
+        WorkspaceManager.__init__(self, parent)
+
         self.active = False #whether profiler is active or just looking at webcam view
         self.pause_delay = 0 #time delay for when profiler is inactive. cumulatively adds.
         self.last_pause = time.time() #last time profiler was inactive
@@ -56,7 +69,11 @@ class Controller(tk.Frame):
                               'increase exposure': ['inc_exp', tk.PhotoImage(file='images/increase_exp.gif')],
                               'decrease exposure': ['dec_exp', tk.PhotoImage(file='images/decrease_exp.gif')],
                               'view log': ['view_log', tk.PhotoImage(file='images/log.gif')],
-                               'clear windows': ['clear windows', tk.PhotoImage(file='images/clear_windows.gif')]
+                              'clear windows': ['clear windows', tk.PhotoImage(file='images/clear_windows.gif')],
+                              'basic workspace': ['basic workspace', tk.PhotoImage(file='images/basic_workspace.gif')],
+                              'load workspace': ['basic workspace', tk.PhotoImage(file='images/load_workspace.gif')],
+                              'save workspace': ['basic workspace', tk.PhotoImage(file='images/save_workspace.gif')],
+                              'show webcam': ['show webcam', tk.PhotoImage(file='images/show_webcam.gif')]
                                }
         self.toolbaroptions = ['x Cross Profile', 'y Cross Profile'] #initial choices for active buttons on toolbar
         self.camera_index = 0
@@ -99,6 +116,7 @@ class Controller(tk.Frame):
         self.passfail_frame = None
         self.systemlog_frame = None
         self.toolbarconfig_frame = None
+        self.webcam_frame = None
         
         self.bg_frame = 0
         self.bg_subtract = 0
@@ -141,18 +159,24 @@ class Controller(tk.Frame):
         if camera_count >= 6: submenu.add_command(label='5', command= lambda: self.change_cam(5))
         if camera_count >= 7: submenu.add_command(label='6', command= lambda: self.change_cam(6))
         controlMenu.add_command(label="Edit Config", command=self.change_config)
+        controlMenu.add_command(label="View System Log", command= self.view_log)
         controlMenu.add_separator()
         controlMenu.add_command(label="Calibrate background subtraction", command=self.progress.calibrate_bg)
         controlMenu.add_command(label="Reset background subtraction", command=self.progress.reset_bg)
         controlMenu.add_separator()
-        controlMenu.add_command(label="View Log", command= self.view_log)
         controlMenu.add_cascade(label='Change Camera', menu=submenu, underline=0)
         controlMenu.add_separator()
-        controlMenu.add_command(label="Clear Windows", command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message"))
+        controlMenu.add_command(label="Show all windows", command= self.show_all)
+        controlMenu.add_command(label="Close all windows", command= self.close_all)
+        controlMenu.add_separator()
+        controlMenu.add_command(label="Load Workspace", command= self.load_workspace)
+        controlMenu.add_command(label="Save Workspace", command= self.save_workspace)
         menubar.add_cascade(label="Control", menu=controlMenu)
 
         windowMenu = tk.Menu(menubar, tearoff=1)
         submenu = tk.Menu(windowMenu, tearoff=1)
+        windowMenu.add_command(label="Show Webcam Feed", command=self.view_webcam)
+        windowMenu.add_separator()
         windowMenu.add_command(label="Calculation Results", command=self.calc_results)
         windowMenu.add_command(label="x Cross Profile", command=lambda: self.change_fig('x cross profile'))
         windowMenu.add_command(label="y Cross Profile", command=lambda: self.change_fig('y cross profile'))
@@ -259,9 +283,6 @@ class Controller(tk.Frame):
         # b = tk.Button(labelframe, text="Stop Sound", command=lambda: self.stream.streamer.stop_stream())
         # b.pack(fill=tk.BOTH)
         
-        b = tk.Button(labelframe, text="Show Webcam", command=self.view_webcam)
-        b.pack(fill=tk.BOTH)
-        
         newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
         for button in newbuttons:
             self.update_toolbar(button)
@@ -305,7 +326,7 @@ class Controller(tk.Frame):
                     self.log('Problem! Could not fit x gaussian!')
                 
                 # plt.xlim(0,self.width)
-                plt.ylim(0,255)
+                # plt.ylim(0,255)
         elif self.fig_type == 'y cross profile':
             if self.peak_cross != None:
                 xs = np.arange(self.height)[self.peak_cross[1]-20:self.peak_cross[1]+20]
@@ -318,7 +339,7 @@ class Controller(tk.Frame):
                     self.log('Problem! Could not fit x gaussian!')
                 
                 # plt.xlim(0,self.height)
-                plt.ylim(0,255)
+                # plt.ylim(0,255)
         elif self.fig_type == '2d profile':
             if self.peak_cross != None:
                 if str(self.MA) != 'nan':
@@ -621,12 +642,16 @@ class Controller(tk.Frame):
         status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
         self.status.set(status_string)
                 
-        imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
+        self.imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
             
-        lmain.imgtk = imgtk
-        lmain.configure(image=imgtk)
-        lmain.after(10, self.show_frame)
+        # lmain.imgtk = self.imgtk
+        # lmain.configure(image=self.imgtk)
+        # lmain.after(10, self.show_frame)
         
+        if self.webcam_frame is not None:
+            self.webcam_frame.show_frame()
+        self.lmain.after(10, self.show_frame)
+              
         self.img = frame
         curr_time = time.time()
         if curr_time - self.plot_time > self.plot_tick and self.active: #if tickrate period elapsed, update the plot with new data
@@ -747,16 +772,17 @@ class Controller(tk.Frame):
                 
     def view_log(self):
         '''Opens System Log'''
-        if self.systemlog_frame != None:
-            self.systemlog_frame.close()
-        self.systemlog_frame = interface.SystemLog(self)
+        if self.systemlog_frame is None:
+            self.systemlog_frame = self.view('logs')
+        else:
+            self.log('System logs already loaded')
         
     def view_webcam(self):
-        '''Opens System Log'''
-        # if self.systemlog_frame != None:
-            # self.systemlog_frame.close()
-        from utils import results
-        self.webcam_frame = results.WebcamView(self)
+        '''Opens Webcam Feed'''
+        if self.webcam_frame is None:
+            self.webcam_frame = self.view('webcam')
+        else:
+            self.log('Webcam window already loaded')
             
     def change_toolbar(self):
         '''Opens Toolbar Settings'''
@@ -778,15 +804,21 @@ class Controller(tk.Frame):
     def update_toolbar(self, button):
         '''Adds buttons to the toolbar that have been chosen'''
         if button.lower() in self.toolbaractions.keys():
-            if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'clear windows']:
+            if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'clear windows', 'save workspace', 'load workspace', 'show webcam']:
                 if self.toolbaractions[button.lower()][0] == 'view_log':
                     self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=self.view_log), button])
                 elif self.toolbaractions[button.lower()][0] == 'clear windows':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: tkMessageBox.showerror("Not done", "This is a temporary message")), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.close_all), button])
                 elif self.toolbaractions[button.lower()][0] == 'inc_exp':
                     self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(1)), button])
                 elif self.toolbaractions[button.lower()][0] == 'dec_exp':
                     self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(-1)), button])
+                elif self.toolbaractions[button.lower()][0] == 'load workspace':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.load_workspace), button])
+                elif self.toolbaractions[button.lower()][0] == 'save workspace':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.save_workspace), button])
+                elif self.toolbaractions[button.lower()][0] == 'show webcam':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.view_webcam), button])
             else:
                 self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
         else:
@@ -796,10 +828,10 @@ class Controller(tk.Frame):
     def pass_fail_testing(self):
         '''Sets off alarm if pass/fail test criteria are not met.'''
         for index in np.where(np.array(self.raw_passfail) == 'True')[0]:
-            x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.raw_xbounds[index]]
+            x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.info_frame.raw_xbounds[index]]
             if index == 0:
                 if self.beam_width is not None:
-                    y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
+                    y_lower, y_upper = [float(i[5:]) for i in self.info_frame.raw_ybounds[index]]
                     if self.beam_width[0]*self.pixel_scale <= float(x_lower[5:]) or self.beam_width[0]*self.pixel_scale >= float(x_upper[5:]) or self.beam_width[1]*self.pixel_scale <= y_lower or self.beam_width[1]*self.pixel_scale >= y_upper:
                         self.alert("Pass/Fail Test", "Beam Width has failed to meet criteria!")
                         self.raw_passfail[index] = 'False' #reset value
@@ -817,14 +849,14 @@ class Controller(tk.Frame):
                     self.info_frame.refresh_frame()
             if index == 3:
                 if self.peak_cross is not None:
-                    y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
+                    y_lower, y_upper = [float(i[5:]) for i in self.info_frame.raw_ybounds[index]]
                     if self.peak_cross[0]*self.pixel_scale <= float(x_lower[5:]) or self.peak_cross[0]*self.pixel_scale >= float(x_upper[5:]) or self.peak_cross[1]*self.pixel_scale <= y_lower or self.peak_cross[1]*self.pixel_scale >= y_upper:
                             self.alert("Pass/Fail Test", "Peak Position has failed to meet criteria!")
                             self.raw_passfail[index] = 'False' #reset value
                             self.info_frame.refresh_frame()
             if index == 4:
                 if self.centroid is not None:
-                    y_lower, y_upper = [float(i[5:]) for i in self.raw_ybounds[index]]
+                    y_lower, y_upper = [float(i[5:]) for i in self.info_frame.raw_ybounds[index]]
                     if self.centroid[0]*self.pixel_scale <= float(x_lower[5:]) or self.centroid[0]*self.pixel_scale >= float(x_upper[5:]) or self.centroid[1]*self.pixel_scale <= y_lower or self.centroid[1]*self.pixel_scale >= y_upper:
                             self.alert("Pass/Fail Test", "Centroid Position has failed to meet criteria!")
                             self.raw_passfail[index] = 'False' #reset value
@@ -859,13 +891,13 @@ class Controller(tk.Frame):
 
     def alert(self, title, text):
         '''Makes a sound and shows alert window'''
-        print '\a'
+        print('\a')
         self.info_window(title, text)
         self.log(text)
         # tkMessageBox.showerror(title, text)
         
     def log(self, text):
-        print text
+        print(text)
         timestamp = time.strftime("%H:%M:%S", time.localtime())
         self.logs.append(timestamp + ' ' + text)
         if self.systemlog_frame != None:

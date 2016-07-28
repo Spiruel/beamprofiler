@@ -334,9 +334,10 @@ class InfoFrame(tk.Frame):
                         
 class PassFailDialogue(tkSimpleDialog.Dialog):
     def __init__(self, master, manyopt, bounds):
+        self.master = master
         self.manyopt = manyopt
         self.bounds = bounds
-        tkSimpleDialog.Dialog.__init__(self, master)
+        tkSimpleDialog.Dialog.__init__(self, self.master.info_frame.window)
     
     def body(self, master):
         if self.manyopt:
@@ -402,32 +403,6 @@ class PassFailDialogue(tkSimpleDialog.Dialog):
         
     def close(self):
         self.destroy()
-
-class SystemLog():  
-    def __init__(self, parent):
-        self.parent = parent
-        self.window = tk.Toplevel(parent)
-        self.window.minsize(200,350)
-        
-        self.tex = tk.Text(master=self.window)
-        self.tex.config(state=tk.DISABLED)
-        self.tex.pack(side=tk.RIGHT)
-
-        self.callback() #show values on start
-        
-    def cbc(self, id, tex):
-        return lambda : self.callback(id, tex)
-
-    def callback(self):
-        self.tex.config(state=tk.NORMAL)
-        self.tex.delete('1.0', tk.END)
-        for error in self.parent.logs:
-            self.tex.insert(tk.END, error+'\n')
-        self.tex.see(tk.END)             # Scroll if necessary
-        self.tex.config(state=tk.DISABLED)
-        
-    def close(self):
-        self.window.destroy()
         
 class ToolbarConfig(tkSimpleDialog.Dialog):
     def __init__(self, master):
@@ -436,7 +411,8 @@ class ToolbarConfig(tkSimpleDialog.Dialog):
         self.result = []
         self.options = ['x Cross Profile', 'y Cross Profile', '2D Profile', '2D Surface',
                   'Plot Positions', 'Plot Power', 'Plot Orientation', 'Beam Stability',
-                  'Increase exposure', 'Decrease exposure', 'View log', 'Basic Workspace', 'Clear windows']
+                  'Increase exposure', 'Decrease exposure', 'View log', 'Basic Workspace',
+                  'Clear windows', 'Load Workspace', 'Save Workspace', 'Show Webcam']
         tkSimpleDialog.Dialog.__init__(self, master)
         
     def body(self, master):
