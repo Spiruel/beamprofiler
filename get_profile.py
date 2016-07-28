@@ -127,6 +127,8 @@ class Controller(tk.Frame, WorkspaceManager):
         
         self.statusbar = tk.Frame(self.parent)
         self.progress = interface.Progress(self)
+
+	self.webcam_counter = 0;
         
         self.read_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
 

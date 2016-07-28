@@ -175,9 +175,18 @@ class WebcamView(NewWindow):
         self.close_newwindow()
         self.window.destroy()
         
+<<<<<<< HEAD
 class SystemLog(NewWindow):  
     def __init__(self, parent, x, y, geom=None):
         self.parent = parent
+=======
+class WebcamView(NewWindow):
+    def __init__(self, parent, counter):
+    
+        self.parent = parent
+        
+        self.counter = counter
+>>>>>>> 4d743e428d2f9cb676230e5543cf2ba85ade725e
 
         self.w = self.parent.ws/10
         self.h = self.parent.hs/5
@@ -191,6 +200,7 @@ class SystemLog(NewWindow):
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.windowtype = 'logs'
         
+<<<<<<< HEAD
         self.tex = tk.Text(master=self.window)
         self.tex.config(state=tk.DISABLED)
         self.tex.pack(side=tk.RIGHT)
@@ -211,3 +221,6 @@ class SystemLog(NewWindow):
     def close(self):
         self.parent.systemlog_frame = None
         self.window.destroy()
+=======
+        NewWindow.__init__(self, parent, 0, 0)
+>>>>>>> 4d743e428d2f9cb676230e5543cf2ba85ade725e
