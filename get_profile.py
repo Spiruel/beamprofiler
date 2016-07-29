@@ -2,11 +2,12 @@
 # -*- coding: latin-1 -*-
           
 from utils.results import WorkspaceManager
-from utils import analysis
-from utils import output
-from utils import interface
+from utils import analysis, output, interface
 
-import ConfigParser
+try:
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
 
 try:
     # for Python2
@@ -27,17 +28,15 @@ import time
 import math
 
 from mpl_toolkits.mplot3d import Axes3D
-from scipy.ndimage.interpolation import zoom
 from scipy.optimize import curve_fit
+from scipy.ndimage.interpolation import zoom
                 
-import matplotlib
-matplotlib.use('TkAgg')
+# import matplotlib
+# matplotlib.use('TkAgg')
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-
-import threading
 
 root = tk.Tk()
              
@@ -69,11 +68,13 @@ class Controller(tk.Frame, WorkspaceManager):
                               'increase exposure': ['inc_exp', tk.PhotoImage(file='images/increase_exp.gif')],
                               'decrease exposure': ['dec_exp', tk.PhotoImage(file='images/decrease_exp.gif')],
                               'view log': ['view_log', tk.PhotoImage(file='images/log.gif')],
+                              'show windows': ['show windows', tk.PhotoImage(file='images/show_windows.gif')],
                               'clear windows': ['clear windows', tk.PhotoImage(file='images/clear_windows.gif')],
                               'basic workspace': ['basic workspace', tk.PhotoImage(file='images/basic_workspace.gif')],
-                              'load workspace': ['basic workspace', tk.PhotoImage(file='images/load_workspace.gif')],
-                              'save workspace': ['basic workspace', tk.PhotoImage(file='images/save_workspace.gif')],
-                              'show webcam': ['show webcam', tk.PhotoImage(file='images/show_webcam.gif')]
+                              'load workspace': ['load workspace', tk.PhotoImage(file='images/load_workspace.gif')],
+                              'save workspace': ['save workspace', tk.PhotoImage(file='images/save_workspace.gif')],
+                              'show webcam': ['show webcam', tk.PhotoImage(file='images/show_webcam.gif')],
+                              'calculation results': ['calculation results', tk.PhotoImage(file='images/calc_results.gif')]
                                }
         self.toolbaroptions = ['x Cross Profile', 'y Cross Profile'] #initial choices for active buttons on toolbar
         self.camera_index = 0
@@ -134,7 +135,7 @@ class Controller(tk.Frame, WorkspaceManager):
 
         # **** Status Bar ****
         self.status = tk.StringVar()
-        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
+        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
         self.status.set(status_string)
         status_label = tk.Label(self.statusbar, textvariable=self.status, width = 65, pady = 5, anchor=tk.W)
         status_label.pack(side=tk.BOTTOM, fill=tk.X)
@@ -186,7 +187,6 @@ class Controller(tk.Frame, WorkspaceManager):
         windowMenu.add_command(label="2D Surface", command=lambda: self.change_fig('2d surface'))
         windowMenu.add_separator()
         windowMenu.add_command(label="Plot Positions", command=lambda: self.change_fig('positions'))
-        windowMenu.add_command(label="Plot Power", command=lambda: self.change_fig('power'))
         windowMenu.add_command(label="Plot Orientation", command=lambda: self.change_fig('orientation'))
         windowMenu.add_separator()
         windowMenu.add_command(label="Beam Stability", command=lambda: self.change_fig('beam stability'))
@@ -318,27 +318,31 @@ class Controller(tk.Frame, WorkspaceManager):
         
         if self.fig_type == 'x cross profile':
             if self.peak_cross != None:
-                xs = np.arange(self.width)[self.peak_cross[0]-20:self.peak_cross[0]+20]
+                size = 40 #self.beam_width[0]
+                xs = np.arange(self.width)[self.peak_cross[0]-size:self.peak_cross[0]+size]
                 ys = grayscale[self.peak_cross[1],:]
-                plt.plot(xs, ys[self.peak_cross[0]-20:self.peak_cross[0]+20],'k-')
+                plt.plot(xs, ys[self.peak_cross[0]-size:self.peak_cross[0]+size],'k-')
                 try:
-                    popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys,p0=[250,self.peak_cross[0],20], maxfev=50)
-                    plt.plot(xs,output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-20:self.peak_cross[0]+20],'r-')
+                    popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys,p0=[250,self.peak_cross[0],size], maxfev=50)
+                    plt.plot(xs,output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-size:self.peak_cross[0]+size],'r-')
                 except:
-                    self.log('Problem! Could not fit x gaussian!')
+                    pass
+                    # self.log('Problem! Could not fit x gaussian!')
                 
                 # plt.xlim(0,self.width)
                 # plt.ylim(0,255)
         elif self.fig_type == 'y cross profile':
             if self.peak_cross != None:
-                xs = np.arange(self.height)[self.peak_cross[1]-20:self.peak_cross[1]+20]
+                size = 40 #self.beam_width[1]
+                xs = np.arange(self.height)[self.peak_cross[1]-size:self.peak_cross[1]+size]
                 ys = grayscale[:,self.peak_cross[0]]
-                plt.plot(xs, ys[self.peak_cross[1]-20:self.peak_cross[1]+20],'k-')
+                plt.plot(xs, ys[self.peak_cross[1]-size:self.peak_cross[1]+size],'k-')
                 try:
-                    popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys,p0=[250,self.peak_cross[1],20], maxfev=50)
-                    plt.plot(xs,output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-20:self.peak_cross[1]+20],'r-')
+                    popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys,p0=[250,self.peak_cross[1],size], maxfev=50)
+                    plt.plot(xs,output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-size:self.peak_cross[1]+size],'r-')
                 except:
-                    self.log('Problem! Could not fit x gaussian!')
+                    pass
+                    # self.log('Problem! Could not fit x gaussian!')
                 
                 # plt.xlim(0,self.height)
                 # plt.ylim(0,255)
@@ -380,13 +384,15 @@ class Controller(tk.Frame, WorkspaceManager):
                     popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys_x,p0=[250,self.peak_cross[0],20], maxfev=50)
                     plt.plot(xs,size - output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-(size/2):self.peak_cross[0]+(size/2)]/norm_factor,'r-', lw=2)
                 except:
-                    self.log('Problem! Could not fit x gaussian!')
+                    pass
+                    # self.log('Problem! Could not fit x gaussian!')
                     
                 try:
                     popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys_y,p0=[250,self.peak_cross[1],20], maxfev=50)
                     plt.plot(output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-(size/2):self.peak_cross[1]+(size/2)]/norm_factor,xs,'r-', lw=2)
                 except:
-                    self.log('Problem! Could not fit y gaussian!')
+                    pass
+                    # self.log('Problem! Could not fit y gaussian!')
                 
                 if str(self.ellipse_angle) != 'nan':
                     x_displace, y_displace = self.peak_cross[0]-(size/2), self.peak_cross[1]-(size/2)
@@ -513,7 +519,7 @@ class Controller(tk.Frame, WorkspaceManager):
 
     def init_camera(self):
         '''Initialises the camera with a set resolution.'''
-        self.width, self.height = 640, 360
+        self.width, self.height = 640*2, 360*2
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap:
             raise Exception("Camera not accessible")
@@ -586,31 +592,21 @@ class Controller(tk.Frame, WorkspaceManager):
             
             if peak_cross != (np.nan, np.nan):
                 cross_size = 10
-                screen_peak_cross = peak_cross[0]*(self.width/640), peak_cross[1]*(self.height/360)
+                screen_peak_cross = peak_cross[0]*(640./self.width), peak_cross[1]*(360./self.height)
                 cv2.line(cv2image, (int(screen_peak_cross[0])-cross_size, int(screen_peak_cross[1])), (int(screen_peak_cross[0])+cross_size, int(screen_peak_cross[1])), 255, thickness=1)
                 cv2.line(cv2image, (int(screen_peak_cross[0]), int(screen_peak_cross[1])+cross_size), (int(screen_peak_cross[0]), int(screen_peak_cross[1])-cross_size), 255, thickness=1)
                     
             centroid = self.analyse.get_centroid()
-            if centroid != (np.nan, np.nan):
-
-                # #if centroid then peak cross can be calculated quickly
-                # # i,j = self.analyse.get_max(alpha=10, size=10) #make sure not too intensive
-                # if len(i) != 0 and len(j) != 0:
-                    # peak_cross = (sum(i) / len(i), sum(j) / len(j)) #chooses the average point for the time being!!
-                    # self.peak_cross = peak_cross
-                # else:
-                    # peak_cross = (np.nan, np.nan)
-                    # self.peak_cross = None
-                
+            if centroid != (np.nan, np.nan):               
                 if centroid[0] < self.width or centroid[1] < self.height: #ensure centroid lies within correct regions
                     self.centroid = centroid
                     
                     cross_size = 20
-                    cv2.line(cv2image, (int(centroid[0])-cross_size, int(centroid[1])), (int(centroid[0])+cross_size, int(centroid[1])), 255, thickness=1)
-                    cv2.line(cv2image, (int(centroid[0]), int(centroid[1])+cross_size), (int(centroid[0]), int(centroid[1])-cross_size), 255, thickness=1)
-                    
+                    screen_centroid = centroid[0]*(640./self.width), centroid[1]*(360./self.height)
+                    cv2.line(cv2image, (int(screen_centroid[0])-cross_size, int(screen_centroid[1])), (int(screen_centroid[0])+cross_size, int(screen_centroid[1])), 255, thickness=1)
+                    cv2.line(cv2image, (int(screen_centroid[0]), int(screen_centroid[1])+cross_size), (int(screen_centroid[0]), int(screen_centroid[1])-cross_size), 255, thickness=1)
                 else:
-                    self.log('Problem! Centroid out of image region. ' + str(centroid[0]) + ' ' + str(centroid[1]))
+                    # self.log('Problem! Centroid out of image region. ' + str(centroid[0]) + ' ' + str(centroid[1]))
                     self.centroid = None
             else:
                 self.centroid = None
@@ -622,7 +618,9 @@ class Controller(tk.Frame, WorkspaceManager):
                 (x,y),(ma,MA),angle = ellipses
                 self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = MA, ma, x, y, angle
                 self.ellipticity, self.eccentricity = 1-(self.ma/self.MA), np.sqrt(1-(self.ma/self.MA)**2)
-                cv2.ellipse(cv2image,ellipses,(0,255,0),1)
+                fix_x, fix_y = (640./self.width), (360./self.height)
+                screen_ellipses = (x*fix_x, y*fix_y), (ma*fix_x, MA*fix_x), angle #hope the aspect ratio kept same for fix_x, fix_y. should do properly with trig
+                cv2.ellipse(cv2image,screen_ellipses,(0,255,0),1)
             else:
                 self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = np.nan, np.nan, np.nan, np.nan, np.nan
                 self.ellipticity, self.eccentricity = np.nan, np.nan
@@ -635,13 +633,13 @@ class Controller(tk.Frame, WorkspaceManager):
 
             self.pass_fail_testing()
             
-            self.beam_width = self.analyse.get_beam_width(self.centroid)
+            self.beam_width = self.analyse.get_e2_width(self.peak_cross)
             if self.beam_width is not None:
                 self.beam_diameter = np.mean(self.beam_width)
             else:
                 self.beam_diameter = None
                 
-        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
+        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
         self.status.set(status_string)
                 
         self.imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
@@ -749,9 +747,10 @@ class Controller(tk.Frame, WorkspaceManager):
     
     def calc_results(self):
         '''Opens calculation results window'''
-        if self.info_frame != None:
-            self.info_frame.close()
-        self.info_frame = interface.InfoFrame(self)
+        if self.info_frame is None:
+            self.info_frame = self.view('info')
+        else:
+            self.log('Calculation results already loaded')
         
     def change_config(self):
         '''Opens configuration window'''
@@ -806,7 +805,7 @@ class Controller(tk.Frame, WorkspaceManager):
     def update_toolbar(self, button):
         '''Adds buttons to the toolbar that have been chosen'''
         if button.lower() in self.toolbaractions.keys():
-            if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'clear windows', 'save workspace', 'load workspace', 'show webcam']:
+            if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'calculation results', 'show windows', 'clear windows', 'save workspace', 'load workspace', 'show webcam']:
                 if self.toolbaractions[button.lower()][0] == 'view_log':
                     self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=self.view_log), button])
                 elif self.toolbaractions[button.lower()][0] == 'clear windows':
@@ -821,6 +820,10 @@ class Controller(tk.Frame, WorkspaceManager):
                     self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.save_workspace), button])
                 elif self.toolbaractions[button.lower()][0] == 'show webcam':
                     self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.view_webcam), button])
+                elif self.toolbaractions[button.lower()][0] == 'show windows':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.show_all), button])
+                elif self.toolbaractions[button.lower()][0] == 'calculation results':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.calc_results), button])
             else:
                 self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
         else:
@@ -867,10 +870,10 @@ class Controller(tk.Frame, WorkspaceManager):
                 print 'check total power'
                                
         for index in np.where(np.array(self.ellipse_passfail) == 'True')[0]:
-            x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.ellipse_xbounds[index]]
+            x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.info_frame.ellipse_xbounds[index]]
             if index == 0:
                 if self.ma <= float(x_lower[5:]) or self.ma >= float(x_upper[5:]):
-                    y_lower, y_upper = [float(i[5:]) for i in self.ellipse_ybounds[index]]
+                    y_lower, y_upper = [float(i[5:]) for i in self.info_frame.ellipse_ybounds[index]]
                     if self.MA <= y_lower or self.MA >= y_upper:
                         self.alert("Pass/Fail Test", "Ellipse axes have failed to meet criteria!")
                         self.ellipse_passfail[index] = 'False'

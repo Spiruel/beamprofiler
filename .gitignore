@@ -3,6 +3,8 @@
 *.avi
 *.png
 *.csv
+*.bat
+*.spec
 
 test.py
 

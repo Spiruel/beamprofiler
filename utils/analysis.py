@@ -264,7 +264,7 @@ class Analyse(threading.Thread):
 
         return pts
         
-    def get_beam_width(self, centroid):
+    def get_beam_width(self, peak_cross):
         image = self.master.analysis_frame
         height, width = image.shape[0:2]
         
@@ -288,3 +288,31 @@ class Analyse(threading.Thread):
 
         return (5,5)
         # return (4*sig_x, 4*sig_y)
+        
+    def get_e2_width(self, peak_cross):
+        image = self.master.analysis_frame
+        height, width = image.shape[0:2]
+                
+        if peak_cross is None or peak_cross == (np.nan, np.nan): 
+            return None
+         
+        peak_cross = [int(i) for i in peak_cross]
+        x_cross_prof = image[peak_cross[1],:]
+        y_cross_prof = image[:,peak_cross[0]]
+        
+        cross_profs = (x_cross_prof, y_cross_prof)
+        
+        width =  []
+        for i, cp in zip(peak_cross, cross_profs):
+            first_half = cp[:i][::-1]
+            second_half = cp[i:]
+            
+            if len(first_half) == 0 or len(second_half) == 0:
+                return None
+                
+            a0 = np.e ** (-2)
+            e1 = np.abs(first_half - a0).argmin()
+            e2 = np.abs(second_half - a0).argmin()
+            width.append((len(first_half)+e2) - (len(first_half)-e1))
+        
+        return width

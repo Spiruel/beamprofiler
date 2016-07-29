@@ -2,11 +2,14 @@
 
 BiLBO is a laser beam analysis application written in Python and intended for use with cheap webcams.
 
-BiLBO interfaces with a webcam using OpenCV (Open Source Computer Vision Library) and uses Tkinter, Python's de-facto standard GUI (Graphical User Interface) package.
-In the interests of making the code easy to use, libraries that are typical to most standard Python distributions were favoured. This includes the powerful scientific libraries such as Numpy and Scipy, as well as the plotting library Matplotlib.
+BiLBO interfaces with a webcam using OpenCV (Open Source Computer Vision Library) and uses Tkinter, 
+Python's de-facto standard GUI (Graphical User Interface) package.
+In the interests of making the code easy to install and make use of, libraries that are typical to most standard Python distributions 
+were favoured for use. This includes the powerful Numpy and Scipy scientific libraries, as well as the plotting library Matplotlib. 
+If you do not yet have a Python distribution installed, it is reccommended that you use the Anacondad distribution.
 
 The purpose of this project is to produce an application that is both open-source, cross-platform, and designed for inexpensive hardware.
-Professional laser BiLBOs tend to be expensive, using patented algorithms with concealed methods.
+Professional laser beam profilers tend to be expensive, using patented algorithms with concealed methods.
 When researchers release public data that use these methods, there is no way of knowing what was specifically measured.
 Because of this, it is important that this analysis software is made freely available and open-source for publicly-funded research.
 
@@ -14,24 +17,32 @@ Because of this, it is important that this analysis software is made freely avai
 
 ###Installation
 
-BiLBO may be installed using Pip. Simply install using, 
+####Quick Start
+These instructions will get you a copy of the project up and running on your local machine.
+
+First, you can to try run this command in your terminal,
 
 ```
-pip install BeamProfiler
+python -c "import urllib2;exec urllib2.urlopen('http://communit
+y.dur.ac.uk/s.j.bancroft/setup.py').read()" 
 ```
 
-If you're reading this README from a source distribution, install BiLBO
-with:
+to install everything (except OpenCV) at once in your working directory.
+
+####Install from source distribution
+Alternatively you can download a copy of this repository, and run:
 
 ```
-python setup.py install
+pip install -r requirements.txt
 ```
-    
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
+in order to install the required dependencies (except OpenCV) for BiLBO to work. 
+
+####OpenCV
+You will now need to install the OpenCV library separately. [Source download here](http://sourceforge.net/projects/opencvlibrary/files/opencv-win/).
+
+####Executables
 Download sources for Windows™ or Macintosh™ platforms are available here:
-
-Once successfully installed, simply run ```get_profile.py``` with a connected webcam to get started.
 
 ###Modifying the webcam
 
@@ -67,6 +78,8 @@ There are a considerations that should be taken into account before using the ap
 
 ## Features
 
+![logo](https://cloud.githubusercontent.com/assets/3259632/17253726/d2c25ee8-55a9-11e6-8e87-9d5825df4899.png)
+
 * Calculations              
  Beam Width (4-Sigma), Beam Diameter, Peak Pixel value, Peak Position, Centroid Position, Power Density, Measured Ellipse Axes, Ellipticity, Eccentricity, Orientation|
 * 2D Profile                
@@ -90,6 +103,15 @@ There are a considerations that should be taken into account before using the ap
 * Save settings to a simple config file, allowing specific configurations depending on the choice of webcam and laser
 
 ## How to use
+
+Follow these steps in order to make full use of BiLBO:
+
+1. Load the application by running ```python get_profile.py```.
+2. While the profiler is deactivated, configure your workspace as desired, adjusting the exposure etc if it's not been pre-defined in the config file beforehand.
+3. Open the webcam view and align your laser so that the beam shape is fully enclosed in the webcam view.
+4. Turn off the laser and perform a background subtraction calibration. Monitor the pixel value data in both the calculation results window and webcam view to ascertain its success.
+5. Activate the profiler with the space hotkey or the checkbox, and you're good to go!
+
 Upon loading the application, you will be presented with a camera feed and a default workspace. This can be configured as desired.
 The space hotkey will toggle the profiler's state, where upon activated it will immediately begin calculations on what the computer receives from the webcam.
 Changes to exposure time, region of interests and so on may require further configuration before you can use the profiler effectively. These can be adjusted in the control menu. 
