@@ -1,7 +1,6 @@
 *.py[cod]
 *.pyc
 *.avi
-*.png
 *.csv
 *.bat
 *.spec
