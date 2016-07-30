@@ -37,13 +37,64 @@ from scipy.ndimage.interpolation import zoom
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-
-root = tk.Tk()
-             
-class Controller(tk.Frame, WorkspaceManager):
-    def __init__(self, parent):
-        '''Initialises basic variables and GUI elements.'''
+            
+class SplashScreen: 
+    def __init__(self, parent): 
+        self.parent = parent 
+        self.aturSplash() 
+        self.aturWindow() 
         
+    def aturSplash(self):
+        if np.random.random() < 0.01:
+            self.gambar = Image.open('images/bilbo.png')
+        else:
+            self.gambar = Image.open('images/splash.png')
+        self.imgSplash = ImageTk.PhotoImage(self.gambar)
+
+    def aturWindow(self):
+        lebar, tinggi = self.gambar.size 
+        setengahLebar = (self.parent.winfo_screenwidth()-lebar)//2 
+        setengahTinggi = (self.parent.winfo_screenheight()-tinggi)//2
+        self.parent.geometry("%ix%i+%i+%i" %(lebar, tinggi, setengahLebar,setengahTinggi))
+        tk.Label(self.parent, image=self.imgSplash).pack()
+        
+    def count_cameras(self):
+        n = 0
+        for i in range(7):
+            try:
+                cap = cv2.VideoCapture(i)
+                ret, frame = cap.read()
+                cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                self.clear_capture(cap)
+                n += 1
+            except:
+                self.clear_capture(cap)
+                break
+        return n
+        
+    def clear_capture(self, capture):
+        capture.release()
+        cv2.destroyAllWindows()
+
+    def count_cameras(self):
+        n = 0
+        for i in range(7):
+            try:
+                cap = cv2.VideoCapture(i)
+                ret, frame = cap.read()
+                cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                self.clear_capture(cap)
+                n += 1
+            except:
+                self.clear_capture(cap)
+                break
+        return n
+        
+class Controller(tk.Frame, WorkspaceManager):
+    def __init__(self, parent, camera_count):
+        '''Initialises basic variables and GUI elements.'''
+        parent.withdraw()
+
         self.lmain = tk.Label(parent)
         self.lmain.pack()
         
@@ -128,8 +179,6 @@ class Controller(tk.Frame, WorkspaceManager):
         
         self.statusbar = tk.Frame(self.parent)
         self.progress = interface.Progress(self)
-
-	self.webcam_counter = 0;
         
         self.read_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
 
@@ -153,9 +202,9 @@ class Controller(tk.Frame, WorkspaceManager):
         
         controlMenu = tk.Menu(menubar, tearoff=1)
         submenu = tk.Menu(controlMenu, tearoff=1)
-        camera_count = self.count_cameras()
+        # camera_count = self.count_cameras()
         submenu.add_command(label='0', command= lambda: self.change_cam(0))
-        if camera_count > 2: submenu.add_command(label='1', command= lambda: self.change_cam(1))
+        if camera_count >= 2: submenu.add_command(label='1', command= lambda: self.change_cam(1))
         if camera_count >= 3: submenu.add_command(label='2', command= lambda: self.change_cam(2))
         if camera_count >= 4: submenu.add_command(label='3', command= lambda: self.change_cam(3))
         if camera_count >= 5: submenu.add_command(label='4', command= lambda: self.change_cam(4))
@@ -264,19 +313,19 @@ class Controller(tk.Frame, WorkspaceManager):
             # command = self.set_angle)
         # self.scale3.pack()
         
-        self.var1 = tk.IntVar(root); self.var1.set(1)
+        self.var1 = tk.IntVar(self.parent); self.var1.set(1)
         b = tk.Checkbutton(labelframe, text="Centroid x position", command=lambda: self.toggle_graph('centroid_x'), variable=self.var1)
         b.pack(fill=tk.BOTH)
-        self.var2 = tk.IntVar(root); self.var2.set(1)
+        self.var2 = tk.IntVar(self.parent); self.var2.set(1)
         b = tk.Checkbutton(labelframe, text="Centroid y position", command=lambda: self.toggle_graph('centroid_y'), variable=self.var2)
         b.pack(fill=tk.BOTH)
-        self.var3 = tk.IntVar(root); self.var3.set(1)
+        self.var3 = tk.IntVar(self.parent); self.var3.set(1)
         b = tk.Checkbutton(labelframe, text="Peak x position", command=lambda: self.toggle_graph('peak_x'), variable=self.var3)
         b.pack(fill=tk.BOTH)
-        self.var4 = tk.IntVar(root); self.var4.set(1)
+        self.var4 = tk.IntVar(self.parent); self.var4.set(1)
         b = tk.Checkbutton(labelframe, text="Peak y position", command=lambda: self.toggle_graph('peak_y'), variable=self.var4)
         b.pack(fill=tk.BOTH)
-        self.var5 = tk.IntVar(root); self.var5.set(1)
+        self.var5 = tk.IntVar(self.parent); self.var5.set(1)
         b = tk.Checkbutton(labelframe, text="Ellipse_orientation", command=lambda: self.toggle_graph('ellipse_orientation'), variable=self.var5)
         b.pack(fill=tk.BOTH)
         
@@ -291,8 +340,9 @@ class Controller(tk.Frame, WorkspaceManager):
         
         self.make_fig() #make figure environment
         self.init_camera() #initialise camera
-        self.show_frame() #show video feed and update view with new information and refreshed plot etc
 
+        self.show_frame() #show video feed and update view with new information and refreshed plot etc
+        
     def make_fig(self):
         '''Creates a matplotlib figure to be placed in the GUI.'''
         plt.clf()
@@ -948,24 +998,6 @@ class Controller(tk.Frame, WorkspaceManager):
                 self.style_sheet = config.get('Miscellaneous', 'style_sheet')
             if config.has_option('Miscellaneous', 'fig_type'):
                 self.fig_type = config.get('Miscellaneous', 'fig_type')
-        
-    def clear_capture(self, capture):
-        capture.release()
-        cv2.destroyAllWindows()
-
-    def count_cameras(self):
-        n = 0
-        for i in range(7):
-            try:
-                cap = cv2.VideoCapture(i)
-                ret, frame = cap.read()
-                cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                self.clear_capture(cap)
-                n += 1
-            except:
-                self.clear_capture(cap)
-                break
-        return n
             
     def TrueFalse(self, x):
         if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan' and x is not False:
@@ -975,18 +1007,33 @@ class Controller(tk.Frame, WorkspaceManager):
                 return 'INACTIVE'
         else:
             return 'INACTIVE'
-        
+
 def on_closing():
-        '''Closes the GUI.'''
-        root.quit()
-        root.destroy()
-        control.cap.release()
-        cv2.destroyAllWindows()
-        
+    '''Closes the GUI.'''
+    root.quit()
+    root.destroy()
+    control.cap.release()
+    cv2.destroyAllWindows()
+    
+root = tk.Tk()
+
+root.overrideredirect(True) 
+app = SplashScreen(root)
+camera_count = app.count_cameras()
+root.after(3000, root.destroy)
+root.mainloop()
+    
+if camera_count == 0:
+    print('No webcam found!')
+    raise SystemExit(0)
+
+root = tk.Tk()
 w, h = root.winfo_screenwidth(), root.winfo_screenheight()
 root.geometry("%dx%d+0+0" % (w, h))
-control = Controller(root)
+control = Controller(root, camera_count)
 control.pack()
+
+root.deiconify()
 root.bind('<space>', lambda e: control.profiler_active(option=True))
 root.protocol("WM_DELETE_WINDOW", on_closing)
 root.mainloop()

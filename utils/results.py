@@ -55,6 +55,10 @@ class WorkspaceManager(tk.Frame):
     def save_workspace(self):
         self.workspace = []
         self.workspace += self.get_geometry()
+        if self.get_geometry() == []:
+            print 'No workspace to save!'
+        else:
+            print 'Saved workspace!'
     
     def load_workspace(self):
         if self.workspace == []:
