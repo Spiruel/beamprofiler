@@ -75,6 +75,7 @@ class WorkspaceManager(tk.Frame):
                 self.counter += 1
                 if windowtype == 'webcam':
                     t = WebcamView(self, x*ws, y*hs, geom=geom)
+		    self.webcam_frame = t
                 elif windowtype == 'graph':
                     t = GraphView(self, x*ws, y*hs, geom=geom)
                 elif windowtype == 'info':

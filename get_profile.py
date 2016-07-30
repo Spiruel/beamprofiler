@@ -37,6 +37,24 @@ from scipy.ndimage.interpolation import zoom
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+
+def clear_capture(capture):
+    capture.release()
+    cv2.destroyAllWindows()
+
+def count_cameras():
+    n = 0
+    for i in range(7):
+        try:
+	    cap = cv2.VideoCapture(i)
+	    ret, frame = cap.read()
+	    cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+	    clear_capture(cap)
+	    n += 1
+        except:
+	    clear_capture(cap)
+	    break
+    return n
             
 class SplashScreen: 
     def __init__(self, parent): 
@@ -57,38 +75,6 @@ class SplashScreen:
         setengahTinggi = (self.parent.winfo_screenheight()-tinggi)//2
         self.parent.geometry("%ix%i+%i+%i" %(lebar, tinggi, setengahLebar,setengahTinggi))
         tk.Label(self.parent, image=self.imgSplash).pack()
-        
-    def count_cameras(self):
-        n = 0
-        for i in range(7):
-            try:
-                cap = cv2.VideoCapture(i)
-                ret, frame = cap.read()
-                cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                self.clear_capture(cap)
-                n += 1
-            except:
-                self.clear_capture(cap)
-                break
-        return n
-        
-    def clear_capture(self, capture):
-        capture.release()
-        cv2.destroyAllWindows()
-
-    def count_cameras(self):
-        n = 0
-        for i in range(7):
-            try:
-                cap = cv2.VideoCapture(i)
-                ret, frame = cap.read()
-                cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                self.clear_capture(cap)
-                n += 1
-            except:
-                self.clear_capture(cap)
-                break
-        return n
         
 class Controller(tk.Frame, WorkspaceManager):
     def __init__(self, parent, camera_count):
@@ -202,14 +188,8 @@ class Controller(tk.Frame, WorkspaceManager):
         
         controlMenu = tk.Menu(menubar, tearoff=1)
         submenu = tk.Menu(controlMenu, tearoff=1)
-        # camera_count = self.count_cameras()
-        submenu.add_command(label='0', command= lambda: self.change_cam(0))
-        if camera_count >= 2: submenu.add_command(label='1', command= lambda: self.change_cam(1))
-        if camera_count >= 3: submenu.add_command(label='2', command= lambda: self.change_cam(2))
-        if camera_count >= 4: submenu.add_command(label='3', command= lambda: self.change_cam(3))
-        if camera_count >= 5: submenu.add_command(label='4', command= lambda: self.change_cam(4))
-        if camera_count >= 6: submenu.add_command(label='5', command= lambda: self.change_cam(5))
-        if camera_count >= 7: submenu.add_command(label='6', command= lambda: self.change_cam(6))
+	for i in range(camera_count):
+        	submenu.add_command(label=str(i), command= lambda i=i: self.change_cam(i))
         controlMenu.add_command(label="Edit Config", command=self.change_config)
         controlMenu.add_command(label="View System Log", command= self.view_log)
         controlMenu.add_separator()
@@ -584,7 +564,6 @@ class Controller(tk.Frame, WorkspaceManager):
             print 'camera index change, now updating view...', self.camera_index
             self.cap.release()
             self.init_camera()
-            self.show_frame()
     
     def change_colourmap(self, option):
         '''Changes the colourmap used in the camera feed.'''
@@ -1012,14 +991,13 @@ def on_closing():
     '''Closes the GUI.'''
     root.quit()
     root.destroy()
-    control.cap.release()
-    cv2.destroyAllWindows()
+    clear_capture(control.cap)
     
 root = tk.Tk()
 
 root.overrideredirect(True) 
 app = SplashScreen(root)
-camera_count = app.count_cameras()
+camera_count = count_cameras()
 root.after(3000, root.destroy)
 root.mainloop()
     
