@@ -12,3 +12,4 @@ build/
 dist/
 sample.egg-info/
 testing/
+output/
