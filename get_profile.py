@@ -72,6 +72,7 @@ class SplashScreen(Thread):
         self.window.overrideredirect(True)
         self.aturSplash() 
         self.aturWindow()
+	self.window.update()
 
     def close(self):
         self.window.destroy()
