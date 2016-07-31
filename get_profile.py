@@ -66,13 +66,10 @@ def on_closing(controller):
     controller.parent.destroy()
     clear_capture(controller.cap)
 
-
 class SplashScreen(Thread): 
-
     def __init__(self, parent):
-	self.window = tk.Toplevel(parent)
-	self.window.overrideredirect(True)
-
+        self.window = tk.Toplevel(parent)
+        self.window.overrideredirect(True)
         self.aturSplash() 
         self.aturWindow()
 
@@ -94,46 +91,44 @@ class SplashScreen(Thread):
         tk.Label(self.window, image=self.imgSplash).pack()
             
 class Application: 
-
     def load_application(self):
-	self.camera_count = count_cameras()
+        self.camera_count = count_cameras()
 
     def load(self):
+        root = tk.Tk()
 
-	root = tk.Tk()
+        splash_screen = SplashScreen(root)
 
-	splash_screen = SplashScreen(root)
+        print("Loaded spashscreen")
 
-	print("Loaded spashscreen")
+        loader_thread = Thread(target = self.load_application)
+        loader_thread.start()
 
-	loader_thread = Thread(target = self.load_application)
-    	loader_thread.start()
+        w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+        root.geometry("%dx%d+0+0" % (w, h))
+        control = Controller(root)
+        control.pack()
 
-	w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-	root.geometry("%dx%d+0+0" % (w, h))
-	control = Controller(root)
-	control.pack()
+        root.bind('<space>', lambda e: control.profiler_active(option=True))
+        root.protocol("WM_DELETE_WINDOW", partial(on_closing, control))
 
-	root.bind('<space>', lambda e: control.profiler_active(option=True))
-	root.protocol("WM_DELETE_WINDOW", partial(on_closing, control))
+        loader_thread.join()
+        print("Done loading stuff")
 
-    	loader_thread.join()
-    	print("Done loading stuff")
-
-	if self.camera_count == 0:
-	    print('No webcam found!')
-	    raise SystemExit(0)
+        if self.camera_count == 0:
+            print('No webcam found!')
+            raise SystemExit(0)
 
         control.init_camera() #initialise camera
         control.show_frame() #show video feed and update view with new information and refreshed plot etc
 
-	control.load_camera_menu(self.camera_count)
+        control.load_camera_menu(self.camera_count)
 
-    	print("Loaded application. Closing spashscreen")
-	splash_screen.close()
-	print('Showing main window and starting application loop')
-	root.deiconify()
-	root.mainloop()
+        print("Loaded application. Closing spashscreen")
+        splash_screen.close()
+        print('Showing main window and starting application loop')
+        root.deiconify()
+        root.mainloop()
         
 class Controller(tk.Frame, WorkspaceManager):
     def __init__(self, parent):
@@ -378,8 +373,8 @@ class Controller(tk.Frame, WorkspaceManager):
         self.make_fig() #make figure environment
 
     def load_camera_menu(self, camera_count):
-	for i in range(camera_count):
-	    self.camera_menu.add_command(label=str(i), command= lambda i=i: self.change_cam(i))
+        for i in range(camera_count):
+            self.camera_menu.add_command(label=str(i), command= lambda i=i: self.change_cam(i))
         
     def make_fig(self):
         '''Creates a matplotlib figure to be placed in the GUI.'''
