@@ -38,6 +38,10 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolb
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
+from functools import partial
+from threading import Thread
+from time import sleep
+
 def clear_capture(capture):
     capture.release()
     cv2.destroyAllWindows()
@@ -55,15 +59,28 @@ def count_cameras():
 	    clear_capture(cap)
 	    break
     return n
-            
-class SplashScreen: 
-    def __init__(self, parent): 
-        self.parent = parent 
+
+def on_closing(controller):
+    '''Closes the GUI.'''
+    controller.parent.quit()
+    controller.parent.destroy()
+    clear_capture(controller.cap)
+
+
+class SplashScreen(Thread): 
+
+    def __init__(self, parent):
+	self.window = tk.Toplevel(parent)
+	self.window.overrideredirect(True)
+
         self.aturSplash() 
-        self.aturWindow() 
-        
+        self.aturWindow()
+
+    def close(self):
+        self.window.destroy()
+
     def aturSplash(self):
-        if np.random.random() < 0.01:
+        if np.random.randint(1, 100) == 1:
             self.gambar = Image.open('images/bilbo.png')
         else:
             self.gambar = Image.open('images/splash.png')
@@ -71,13 +88,55 @@ class SplashScreen:
 
     def aturWindow(self):
         lebar, tinggi = self.gambar.size 
-        setengahLebar = (self.parent.winfo_screenwidth()-lebar)//2 
-        setengahTinggi = (self.parent.winfo_screenheight()-tinggi)//2
-        self.parent.geometry("%ix%i+%i+%i" %(lebar, tinggi, setengahLebar,setengahTinggi))
-        tk.Label(self.parent, image=self.imgSplash).pack()
+        setengahLebar = (self.window.winfo_screenwidth()-lebar)//2 
+        setengahTinggi = (self.window.winfo_screenheight()-tinggi)//2
+        self.window.geometry("%ix%i+%i+%i" %(lebar, tinggi, setengahLebar,setengahTinggi))
+        tk.Label(self.window, image=self.imgSplash).pack()
+            
+class Application: 
+
+    def load_application(self):
+	self.camera_count = count_cameras()
+
+    def load(self):
+
+	root = tk.Tk()
+
+	splash_screen = SplashScreen(root)
+
+	print("Loaded spashscreen")
+
+	loader_thread = Thread(target = self.load_application)
+    	loader_thread.start()
+
+	w, h = root.winfo_screenwidth(), root.winfo_screenheight()
+	root.geometry("%dx%d+0+0" % (w, h))
+	control = Controller(root)
+	control.pack()
+
+	root.bind('<space>', lambda e: control.profiler_active(option=True))
+	root.protocol("WM_DELETE_WINDOW", partial(on_closing, control))
+
+    	loader_thread.join()
+    	print("Done loading stuff")
+
+	if self.camera_count == 0:
+	    print('No webcam found!')
+	    raise SystemExit(0)
+
+        control.init_camera() #initialise camera
+        control.show_frame() #show video feed and update view with new information and refreshed plot etc
+
+	control.load_camera_menu(self.camera_count)
+
+    	print("Loaded application. Closing spashscreen")
+	splash_screen.close()
+	print('Showing main window and starting application loop')
+	root.deiconify()
+	root.mainloop()
         
 class Controller(tk.Frame, WorkspaceManager):
-    def __init__(self, parent, camera_count):
+    def __init__(self, parent):
         '''Initialises basic variables and GUI elements.'''
         parent.withdraw()
 
@@ -187,16 +246,14 @@ class Controller(tk.Frame, WorkspaceManager):
         menubar.add_cascade(label="File", menu=fileMenu)
         
         controlMenu = tk.Menu(menubar, tearoff=1)
-        submenu = tk.Menu(controlMenu, tearoff=1)
-	for i in range(camera_count):
-        	submenu.add_command(label=str(i), command= lambda i=i: self.change_cam(i))
+        self.camera_menu = tk.Menu(controlMenu, tearoff=1)
         controlMenu.add_command(label="Edit Config", command=self.change_config)
         controlMenu.add_command(label="View System Log", command= self.view_log)
         controlMenu.add_separator()
         controlMenu.add_command(label="Calibrate background subtraction", command=self.progress.calibrate_bg)
         controlMenu.add_command(label="Reset background subtraction", command=self.progress.reset_bg)
         controlMenu.add_separator()
-        controlMenu.add_cascade(label='Change Camera', menu=submenu, underline=0)
+        controlMenu.add_cascade(label='Change Camera', menu=self.camera_menu, underline=0)
         controlMenu.add_separator()
         controlMenu.add_command(label="Show all windows", command= self.show_all)
         controlMenu.add_command(label="Close all windows", command= self.close_all)
@@ -319,9 +376,10 @@ class Controller(tk.Frame, WorkspaceManager):
             self.update_toolbar(button)
         
         self.make_fig() #make figure environment
-        self.init_camera() #initialise camera
 
-        self.show_frame() #show video feed and update view with new information and refreshed plot etc
+    def load_camera_menu(self, camera_count):
+	for i in range(camera_count):
+	    self.camera_menu.add_command(label=str(i), command= lambda i=i: self.change_cam(i))
         
     def make_fig(self):
         '''Creates a matplotlib figure to be placed in the GUI.'''
@@ -741,7 +799,7 @@ class Controller(tk.Frame, WorkspaceManager):
         return image_rotated_cropped
   
     def close_window(self):
-        on_closing()
+        on_closing(self)
         
     def info_window(self, title, info, modal=False):
         t = tk.Toplevel(self)
@@ -780,6 +838,7 @@ class Controller(tk.Frame, WorkspaceManager):
             self.info_frame = self.view('info')
         else:
             self.log('Calculation results already loaded')
+	    self.info_frame.window.lift()
         
     def change_config(self):
         '''Opens configuration window'''
@@ -806,6 +865,7 @@ class Controller(tk.Frame, WorkspaceManager):
             self.systemlog_frame = self.view('logs')
         else:
             self.log('System logs already loaded')
+            self.systemlog_frame.window.lift()
         
     def view_webcam(self):
         '''Opens Webcam Feed'''
@@ -813,6 +873,7 @@ class Controller(tk.Frame, WorkspaceManager):
             self.webcam_frame = self.view('webcam')
         else:
             self.log('Webcam window already loaded')
+            self.webcam_frame.window.lift()
             
     def change_toolbar(self):
         '''Opens Toolbar Settings'''
@@ -986,32 +1047,6 @@ class Controller(tk.Frame, WorkspaceManager):
                 return 'INACTIVE'
         else:
             return 'INACTIVE'
-
-def on_closing():
-    '''Closes the GUI.'''
-    root.quit()
-    root.destroy()
-    clear_capture(control.cap)
     
-root = tk.Tk()
-
-root.overrideredirect(True) 
-app = SplashScreen(root)
-camera_count = count_cameras()
-root.after(3000, root.destroy)
-root.mainloop()
-    
-if camera_count == 0:
-    print('No webcam found!')
-    raise SystemExit(0)
-
-root = tk.Tk()
-w, h = root.winfo_screenwidth(), root.winfo_screenheight()
-root.geometry("%dx%d+0+0" % (w, h))
-control = Controller(root, camera_count)
-control.pack()
-
-root.deiconify()
-root.bind('<space>', lambda e: control.profiler_active(option=True))
-root.protocol("WM_DELETE_WINDOW", on_closing)
-root.mainloop()
+app = Application()
+app.load()
