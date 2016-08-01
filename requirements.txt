@@ -1,8 +1,6 @@
 matplotlib==1.5.1
-matplotlib==1.5.1
 numpy==1.11.1
 PyAudio==0.2.9
 setuptools==19.2
 Pillow==3.3.0
-cv2==1.0
 scipy==0.18.0rc2

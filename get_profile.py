@@ -125,8 +125,11 @@ class Application:
         control.show_frame() #show video feed and update view with new information and refreshed plot etc
 
         control.load_camera_menu(self.camera_count)
+        control.load_workspace()
+        w, h = control.parent.winfo_screenwidth(), control.parent.winfo_screenwidth()
+        control.parent.geometry('%dx%d+%d+%d' % (2*w, w/3 - 17, 0, 0))
 
-        print("Loaded application. Closing spashscreen")
+        print("Loaded application. Closing splashscreen")
         splash_screen.close()
         print('Showing main window and starting application loop')
         root.deiconify()
@@ -195,6 +198,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.plot_tick = 0.1 #refresh rate of plots in sec
         self.pixel_scale = 5.6 #default pixel scale of webcam in um
         
+        self.workspace = []
         self.width, self.height  = 1,1
         # self.stream = output.SoundFeedback(self)
                 
@@ -838,7 +842,7 @@ class Controller(tk.Frame, WorkspaceManager):
         if self.info_frame is None:
             self.info_frame = self.view('info')
         else:
-            self.log('Calculation results already loaded')
+            # self.log('Calculation results already loaded')
             self.info_frame.window.lift()
             self.info_frame.window.deiconify()
             
@@ -847,7 +851,7 @@ class Controller(tk.Frame, WorkspaceManager):
         if self.plot_frame is None:
             self.plot_frame = self.view('plot')
         else:
-            self.log('Plot view already loaded')
+            # self.log('Plot view already loaded')
             self.plot_frame.window.lift()
             self.plot_frame.window.deiconify()
         
@@ -862,6 +866,22 @@ class Controller(tk.Frame, WorkspaceManager):
                 self.plot_tick = plot_tick
             if pixel_scale is not None:
                 self.pixel_scale = pixel_scale
+                if self.info_frame is not None:
+                        self.info_frame.raw_xbounds = [('x ≥ 0.00', 'x ≤ 0.00'), #refresh this to reflect change in pixel scale
+                        ('0.00', '0.00'),
+                        ('0.00', '255.00'),
+                        ('x ≥ 0.00', 'x ≤ ' + '{0:.2f}'.format(self.width*self.pixel_scale)),
+                        ('x ≥ 0.00', 'x ≤ ' + '{0:.2f}'.format(self.width*self.pixel_scale)),
+                        ('0.00', '0.00')
+                        ]
+                        self.info_frame.raw_ybounds = [('y ≥ 0.00', 'y ≤ 0.00'),
+                        (' ', ' '),
+                        (' ', ' '),
+                        ('y ≥ 0.00', 'y ≤ ' + '{0:.2f}'.format(self.height*self.pixel_scale)),
+                        ('y ≥ 0.00', 'y ≤ ' + '{0:.2f}'.format(self.height*self.pixel_scale)),
+                        (' ', ' ')
+                        ]
+                        self.info_frame.refresh_frame()
             if power is not None:
                 if power == '-':
                     self.power = np.nan
@@ -875,7 +895,7 @@ class Controller(tk.Frame, WorkspaceManager):
         if self.systemlog_frame is None:
             self.systemlog_frame = self.view('logs')
         else:
-            self.log('System logs already loaded')
+            # self.log('System logs already loaded')
             self.systemlog_frame.window.lift()
             self.systemlog_frame.deiconify()
         
@@ -884,7 +904,7 @@ class Controller(tk.Frame, WorkspaceManager):
         if self.webcam_frame is None:
             self.webcam_frame = self.view('webcam')
         else:
-            self.log('Webcam window already loaded')
+            # self.log('Webcam window already loaded')
             self.webcam_frame.window.lift()
             self.webcam_frame.deiconify()
             
@@ -1051,7 +1071,14 @@ class Controller(tk.Frame, WorkspaceManager):
                 self.style_sheet = config.get('Miscellaneous', 'style_sheet')
             if config.has_option('Miscellaneous', 'fig_type'):
                 self.fig_type = config.get('Miscellaneous', 'fig_type')
-            
+            if config.has_option('Miscellaneous', 'workspace'):
+                windows = config.get('Miscellaneous', 'workspace').replace(', ',',').split('),')
+                self.workspace = []
+                for window in windows:
+                    w, h, x, y, windowtype = window[1:-1].split(',')
+                    windowtype = windowtype.replace('\'','')
+                    self.workspace.append((float(w), float(h), float(x), float(y), windowtype))
+                
     def TrueFalse(self, x):
         if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan' and x is not False:
             if self.active:

@@ -8,7 +8,7 @@ def install(package):
     pip.main(['install', package])
             
 proceed = raw_input('Accepting the following will install BiLBO into the working directory of your machine. Do you wish to continue? y/n ')
-if proceed.lower() in ['yes','y','yeah','yup','ya']:
+if proceed.lower() in ['yes','y','yeah','yup','ya','oui','si','yesicompletelyagree','anykey','whereistheanykey']:
     for package in requirements:
         try:
             importing = package.split('==')[0]

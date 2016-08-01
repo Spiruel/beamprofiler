@@ -16,7 +16,11 @@ except ImportError:
 import numpy as np
 import time
 import threading
-import ConfigParser
+
+try:
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
        
 class Config(tkSimpleDialog.Dialog):
     def __init__(self, master):

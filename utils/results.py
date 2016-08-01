@@ -10,7 +10,13 @@ except ImportError:
     import tkinter as tk
     import tkinter.ttk as ttk
     
+try:
+    import ConfigParser
+except ImportError:
+    import configparser as ConfigParser
+    
 import numpy as np
+
 import interface
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
@@ -67,19 +73,28 @@ class WorkspaceManager(tk.Frame):
         self.workspace = []
         self.workspace += self.get_geometry()
         if self.get_geometry() == []:
-            print('No workspace to save!')
+            self.log('No workspace to save!')
         else:
-            print('Saved workspace!')
+            config = ConfigParser.ConfigParser()
+            if config.read("config.ini") != []:
+                config.set('Miscellaneous', 'workspace', str(self.workspace)[1:-1])    
+                with open('config.ini', 'w') as configfile:
+                    config.write(configfile)
+                self.log('Written workspace values to config.ini')
+            else:
+                self.log('Could not write to config file. Workspace saved for this session only!')
+            self.log('Saved workspace!')
     
     def load_workspace(self):
         if self.workspace == []:
-            print('No saved workspace found')
+            self.log('No saved workspace found')
         elif self.workspace == self.get_geometry():
-            print('Workspace already loaded!')
+            self.log('Workspace already loaded!')
+            self.show_all()
         else:
             self.close_all()
             for window in self.workspace:
-                w, h, x, y, windowtype  = window
+                w, h, x, y, windowtype = window
                 ws = self.parent.winfo_screenwidth()
                 hs = self.parent.winfo_screenheight()
                 geom = (w*ws, h*hs)
@@ -91,6 +106,7 @@ class WorkspaceManager(tk.Frame):
                     t = GraphView(self, x*ws, y*hs, geom=geom)
                 elif windowtype == 'info':
                     t = InfoView(self, x*ws, y*hs, geom=geom)
+                    self.info_frame = t
                 elif windowtype == 'logs':
                     t = SystemLog(self, x*ws, y*hs, geom=geom)
                     self.systemlog_frame = t
@@ -98,7 +114,7 @@ class WorkspaceManager(tk.Frame):
                     t = PlotView(self, x*ws, y*hs, geom=geom)
                     self.plot_frame = t
                 else:
-                    print('Error couldnt find window to be opened!')
+                    self.log('Error couldnt find window to be opened! '+ windowtype)
                 self.instances.append(t)
         
     def create_window(self, windowtype):
@@ -361,7 +377,7 @@ class PlotView(NewWindow, tk.Frame):
             # self.ax.set_ylim(0,360)
             # self.ax.plot([0,0],'w.',label=''); self.ax.legend(frameon=False)
         # else:
-            # print 'fig type not found.', self.parent.fig_type
+            # self.log 'fig type not found.', self.parent.fig_type
             
         # self.ax[0].hold(True)
         # self.ax[1].hold(True)
@@ -570,7 +586,7 @@ class InfoView(NewWindow):
         if len(selected_item) == 1:
             if len(str(selected_item[0])) == 2:
                 index, row_num = map(int,str(selected_item[0]))
-                print('toggling pass/fail state')
+                self.log('toggling pass/fail state')
                 if index == 1:
                     if self.parent.raw_passfail[row_num] == 'True':
                         self.parent.raw_passfail[row_num] = 'False'
@@ -590,25 +606,25 @@ class InfoView(NewWindow):
                 index, row_num = map(int,str(selected_item[0]))
                 if index == 1:
                     if self.raw_ybounds[row_num] != (' ', ' '):
-                        print('getting x and y bounds')
+                        self.log('getting x and y bounds')
                         passfailbounds = self.change_pass_fail(True, (self.raw_xbounds[row_num], self.raw_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
                             self.raw_xbounds[row_num] = (self.raw_xbounds[row_num][0][:5] + passfailbounds[0], self.raw_xbounds[row_num][1][:5] + passfailbounds[1])
                             self.raw_ybounds[row_num] = (self.raw_ybounds[row_num][0][:5] + passfailbounds[2], self.raw_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
-                        print('getting x bounds')
+                        self.log('getting x bounds')
                         passfailbounds = self.change_pass_fail(False, self.raw_xbounds[row_num]) #get just x bounds
                         if passfailbounds is not None:
                             self.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
                 elif index == 2:
                     if self.ellipse_ybounds[row_num] != (' ', ' '):
-                        print('getting x and y bounds')
+                        self.log('getting x and y bounds')
                         passfailbounds = self.change_pass_fail(True, (self.ellipse_xbounds[row_num], self.ellipse_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
                             self.ellipse_xbounds[row_num] = (self.ellipse_xbounds[row_num][0][:5] + passfailbounds[0], self.ellipse_xbounds[row_num][1][:5] + passfailbounds[1])
                             self.ellipse_ybounds[row_num] = (self.ellipse_ybounds[row_num][0][:5] + passfailbounds[2], self.ellipse_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
-                        print('getting x bounds')
+                        self.log('getting x bounds')
                         passfailbounds = self.change_pass_fail(False, self.ellipse_xbounds[row_num]) #get just x bounds
                         if passfailbounds is not None:
                             self.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])
