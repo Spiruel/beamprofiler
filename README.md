@@ -23,11 +23,10 @@ These instructions will get you a copy of the project up and running on your loc
 First, you can to try run this command in your terminal,
 
 ```
-python -c "import urllib2;exec urllib2.urlopen('http://communit
-y.dur.ac.uk/s.j.bancroft/setup.py').read()" 
+python -c "import urllib2;exec urllib2.urlopen('https://raw.githubusercontent.com/Spiruel/beamprofiler/master/installation.py').read()" 
 ```
 
-to install everything (except OpenCV) at once in your working directory.
+to install everything (except OpenCV) at once in your working directory. [How to install OpenCV.](#opencv-installation)
 
 ####Install from source distribution
 Alternatively you can download a copy of this repository, and run:
@@ -38,9 +37,14 @@ pip install -r requirements.txt
 
 in order to install the required dependencies (except OpenCV) for BiLBO to work. 
 
-####OpenCV
+####OpenCV Installation
 You will now need to install the OpenCV library separately. [Source download here](http://sourceforge.net/projects/opencvlibrary/files/opencv-win/).
 
+**Note**: If you're on the Anaconda distribution of Python you can try to easily install OpenCV using,
+
+```
+conda install opencv
+```
 ####Executables
 Download sources for Windows™ or Macintosh™ platforms are available here:
 
@@ -50,30 +54,24 @@ BiLBO is compatible with any camera that works with the OpenCV library. This mea
 
 There are a considerations that should be taken into account before using the application:
 
-  * Glass windows: they need to be removed, including the window that is
-    typically glued to the chip. Either break it with the chip pointing
-    downwards or pull it out while heating the epoxy. This is dangerous
-    and will void the camera's warranty. It will also make the chip
-    very susceptible to dust and it will age much faster. But it it
-    necessary: otherwise fringes will negatively impact image quality.
+  * Glass windows will need to be completely removed, including the glass cover that is
+    typically glued to the front of the CCD chip. You can remove this by applying heat 
+    the the epoxy with a heat gun. It is to important to remember that this will make the chip
+    very vulnerable to dust and it will age much faster. But it it
+    necessary to prevent interferences fringes negatively impacting upon the quality of the image.
     Remember that even 1% stray light due to reflections from glass-air
     interfaces leads to 40% peak to peak variations in intensity.
 
-  * ND filters -- reflective or volume absorptive need to be angled
-    significantly to keep reflections from interfering at the chip.
-    Those filters also need to be of good quality to not distort the
-    beam.
-
-  * With front-illuminated silicon chips, wavelengths longer than
-    ~1050nm penetrate deeper into the chip and lead to long living
-    excitations and smearing of the image along the vertical shift
+  * With front-illuminated silicon CCD chips, wavelengths longer than
+    around 1050 nm penetrate deeper into the chip and lead to long lasting
+    excitations and image smearing along the vertical shift
     direction.
 
-  * Above 1100 nm and below 400 nm, the quantum efficiency of Silicon
-    chips is typically below 5%. Increased powers can destroy the chip
+  * Above 1100 nm and below 400 nm, the quantum efficiency of silicon
+    chips is expected to be below 5%. Increased powers incident on the CCD can destroy the chip
     or bleach it.
 
-  * Monochrome chips are recommended. Otherwise the Bayer colour filter
+  * Monochrome chips are recommended - the Bayer colour filter
     pattern will skew results.
 
 ## Features
