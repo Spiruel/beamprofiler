@@ -1,10 +1,21 @@
 #!/usr/bin/python
 # -*- coding: latin-1 -*-
 
-import Tkinter as tk
-import ttk
+try:
+    # for Python2
+    import Tkinter as tk
+    import ttk
+except ImportError:
+    # for Python3
+    import tkinter as tk
+    import tkinter.ttk as ttk
+    
 import numpy as np
 import interface
+
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
 class WorkspaceManager(tk.Frame):
     counter = 0
@@ -56,15 +67,15 @@ class WorkspaceManager(tk.Frame):
         self.workspace = []
         self.workspace += self.get_geometry()
         if self.get_geometry() == []:
-            print 'No workspace to save!'
+            print('No workspace to save!')
         else:
-            print 'Saved workspace!'
+            print('Saved workspace!')
     
     def load_workspace(self):
         if self.workspace == []:
-            print 'No saved workspace found'
+            print('No saved workspace found')
         elif self.workspace == self.get_geometry():
-            print 'workspace already loaded!'
+            print('Workspace already loaded!')
         else:
             self.close_all()
             for window in self.workspace:
@@ -75,15 +86,19 @@ class WorkspaceManager(tk.Frame):
                 self.counter += 1
                 if windowtype == 'webcam':
                     t = WebcamView(self, x*ws, y*hs, geom=geom)
-		    self.webcam_frame = t
+                    self.webcam_frame = t
                 elif windowtype == 'graph':
                     t = GraphView(self, x*ws, y*hs, geom=geom)
                 elif windowtype == 'info':
                     t = InfoView(self, x*ws, y*hs, geom=geom)
                 elif windowtype == 'logs':
                     t = SystemLog(self, x*ws, y*hs, geom=geom)
+                    self.systemlog_frame = t
+                elif windowtype == 'plot':
+                    t = PlotView(self, x*ws, y*hs, geom=geom)
+                    self.plot_frame = t
                 else:
-                    print 'Error couldnt find window to be opened!'
+                    print('Error couldnt find window to be opened!')
                 self.instances.append(t)
         
     def create_window(self, windowtype):
@@ -129,6 +144,8 @@ class WorkspaceManager(tk.Frame):
             return self.create_window(InfoView(self,self.windowx,self.windowy))
         elif option == 'logs':
             return self.create_window(SystemLog(self,self.windowx,self.windowy))
+        elif option == 'plot':
+            return self.create_window(PlotView(self,self.windowx,self.windowy))
                 
 class NewWindow(tk.Frame):
     def __init__(self, parent, x, y, geom):
@@ -154,6 +171,208 @@ class NewWindow(tk.Frame):
         if self.window in self.parent.windows:
             self.parent.windows.remove(self.window)
         self.parent.vacancies.append((self.x, self.y, self.w, self.h))
+        self.window.destroy()
+      
+class PlotView(NewWindow, tk.Frame):
+    def __init__(self, parent, x, y, geom=None):
+        self.parent = parent
+        
+        self.w = self.parent.ws/10
+        self.h = self.parent.hs/5
+        # calculate x and y coordinates for the Tk root window
+        self.x = 0# (ws/2) - (w/2)
+        self.y = 0#(hs/2) - (h/2)
+        NewWindow.__init__(self, parent, x, y, geom)
+        tk.Frame.__init__(self, parent)
+        self.lmain2 = tk.Label(self.window)
+        self.lmain2.pack(expand=1, fill=tk.BOTH)
+        
+        self.window.wm_title("Plot View")
+        self.window.minsize(640,360)
+        self.window.protocol("WM_DELETE_WINDOW", self.close)
+        self.windowtype = 'plot'
+        self.init_frame()
+        self.refresh_frame()
+        
+    def init_frame(self):
+        '''Creates a matplotlib figure to be placed in the GUI.'''
+        plt.clf()
+        plt.cla()
+        
+        self.fig = plt.figure(figsize=(16,9), dpi=100)
+        self.ax = self.fig.add_subplot(111)
+
+        canvas = FigureCanvasTkAgg(self.fig, self) 
+        canvas.show() 
+        canvas.get_tk_widget().pack() 
+
+        toolbar = NavigationToolbar2TkAgg(canvas, self) 
+        toolbar.update() 
+        canvas._tkcanvas.pack()
+
+        self.parent.fig_type = 'x cross profile'
+        self.refresh_frame()
+        # self.parent.change_style(self.parent.style_sheet, set=True)
+        
+    def refresh_frame(self):
+        '''Updates the matplotlib figure with new data.'''
+        grayscale = self.parent.analysis_frame
+
+        self.ax.plot(range(50), range(1,51))
+        # if self.parent.fig_type == 'x cross profile':
+            # if self.parent.peak_cross != None:
+                # size = 40 #self.beam_width[0]
+                # xs = np.arange(self.width)[self.parent.peak_cross[0]-size:self.parent.peak_cross[0]+size]
+                # ys = grayscale[self.parent.peak_cross[1],:]
+                # self.ax.plot(xs, ys[self.parent.peak_cross[0]-size:self.parent.peak_cross[0]+size],'k-')
+                # try:
+                    # popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys,p0=[250,self.parent.peak_cross[0],size], maxfev=50)
+                    # self.ax.plot(xs,output.gauss(np.arange(self.width),*popt)[self.parent.peak_cross[0]-size:self.parent.peak_cross[0]+size],'r-')
+                # except:
+                    # pass
+                    # # self.log('Problem! Could not fit x gaussian!')
+                
+                # # plt.xlim(0,self.width)
+                # # plt.ylim(0,255)
+        # elif self.parent.fig_type == 'y cross profile':
+            # if self.parent.peak_cross != None:
+                # size = 40 #self.beam_width[1]
+                # xs = np.arange(self.height)[self.parent.peak_cross[1]-size:self.parent.peak_cross[1]+size]
+                # ys = grayscale[:,self.parent.peak_cross[0]]
+                # self.ax.plot(xs, ys[self.parent.peak_cross[1]-size:self.parent.peak_cross[1]+size],'k-')
+                # try:
+                    # popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys,p0=[250,self.parent.peak_cross[1],size], maxfev=50)
+                    # self.ax.plot(xs,output.gauss(np.arange(self.height),*popt)[self.parent.peak_cross[1]-size:self.parent.peak_cross[1]+size],'r-')
+                # except:
+                    # pass
+                    # # self.log('Problem! Could not fit x gaussian!')
+                
+                # # plt.xlim(0,self.height)
+                # # plt.ylim(0,255)
+        # elif self.parent.fig_type == '2d profile':
+            # if self.parent.peak_cross != None:
+                # if str(self.parent.MA) != 'nan':
+                    # size = 2*int(self.parent.MA)+10
+                # else:
+                    # size = 50
+                # x, y = self.parent.peak_cross
+                # img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
+                # # # # # # params = self.analyse.fit_gaussian(with_bounds=False)
+                # # # # # # # # # # self.analyse.plot_gaussian(plt.gca(), params)
+                
+                # if self.colourmap is None:
+                    # cmap=plt.cm.BrBG
+                # elif self.colourmap == 2:
+                    # cmap=plt.cm.jet
+                # elif self.colourmap == 0:
+                    # cmap=plt.cm.autumn
+                # elif self.colourmap == 1:
+                    # cmap=plt.cm.bone
+                # elif self.colourmap == 12:
+                    # cmap=output.parula_cm
+                # self.ax.imshow(img, cmap=cmap, interpolation='nearest', origin='lower')
+                
+                # xs = np.arange(size)
+                # ys_x = grayscale[self.parent.peak_cross[1],:]
+                # ys_y = grayscale[:,self.parent.peak_cross[0]]
+                # norm_factor = np.max(ys_x)/(0.25*size)
+
+                # try:
+                    # self.ax.plot(xs, size - (ys_x[self.parent.peak_cross[0]-(size/2):self.parent.peak_cross[0]+(size/2)]/norm_factor),'y-', lw=2)
+                    # self.ax.plot(ys_y[self.parent.peak_cross[1]-(size/2):self.parent.peak_cross[1]+(size/2)]/norm_factor, xs,'y-', lw=2)
+                # except:
+                    # return
+                
+                # try:
+                    # popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys_x,p0=[250,self.parent.peak_cross[0],20], maxfev=50)
+                    # self.ax.plot(xs,size - output.gauss(np.arange(self.width),*popt)[self.parent.peak_cross[0]-(size/2):self.parent.peak_cross[0]+(size/2)]/norm_factor,'r-', lw=2)
+                # except:
+                    # pass
+                    # # self.log('Problem! Could not fit x gaussian!')
+                    
+                # try:
+                    # popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys_y,p0=[250,self.parent.peak_cross[1],20], maxfev=50)
+                    # self.ax.plot(output.gauss(np.arange(self.height),*popt)[self.parent.peak_cross[1]-(size/2):self.parent.peak_cross[1]+(size/2)]/norm_factor,xs,'r-', lw=2)
+                # except:
+                    # pass
+                    # # self.log('Problem! Could not fit y gaussian!')
+                
+                # if str(self.ellipse_angle) != 'nan':
+                    # x_displace, y_displace = self.parent.peak_cross[0]-(size/2), self.parent.peak_cross[1]-(size/2)
+                    
+                    # pts = self.analyse.get_ellipse_coords(a=self.ma, b=self.MA, x=self.ellipse_x, y=self.ellipse_y, angle=-self.ellipse_angle)
+                    # self.ax.plot(pts[:,0] - (x_displace), pts[:,1] - (y_displace))
+                    
+                    # MA_x, MA_y = self.ma*math.cos(self.ellipse_angle*(np.pi/180)), self.ma*math.sin(self.ellipse_angle*(np.pi/180))
+                    # ma_x, ma_y = self.MA*math.sin(self.ellipse_angle*(np.pi/180)), self.MA*math.cos(self.ellipse_angle*(np.pi/180))
+                    # MA_xtop, MA_ytop = int(self.ellipse_x + MA_x), int(self.ellipse_y + MA_y)
+                    # MA_xbot, MA_ybot = int(self.ellipse_x - MA_x), int(self.ellipse_y - MA_y)
+                    # ma_xtop, ma_ytop = int(self.ellipse_x + ma_x), int(self.ellipse_y + ma_y) #find corners of ellipse
+                    # ma_xbot, ma_ybot = int(self.ellipse_x - ma_x), int(self.ellipse_y - ma_y)
+                    
+                    # self.ax.plot([MA_xtop - (x_displace), MA_xbot - (x_displace)], [MA_ytop - (y_displace), MA_ybot - (y_displace)], 'w-', lw=2)
+                    # self.ax.plot([ma_xtop - (x_displace), ma_xbot - (x_displace)], [ma_ybot - (y_displace), ma_ytop - (y_displace)], 'w:', lw=2)
+                    
+                # self.ax.set_xlim(0, size)
+                # self.ax.set_ylim(size, 0)
+                
+                # # majorLocator = MultipleLocator(10)
+                # # majorFormatter = FormatStrFormatter('%d')
+                # # minorLocator = MultipleLocator(1)
+
+                # # ax = plt.gca()
+                # # ax.xaxis.set_major_locator(majorLocator)
+                # # ax.xaxis.set_major_formatter(majorFormatter)
+
+                # # # for the minor ticks, use no labels; default NullFormatter
+                # # ax.xaxis.set_minor_locator(minorLocator)
+                # # ax.yaxis.set_minor_locator(minorLocator)
+                
+                # # ax.tick_params(which='both', width=1.5, color='w')
+                # # ax.tick_params(which='major', length=8)
+                # # ax.tick_params(which='minor', length=4)
+        # elif self.parent.fig_type == 'beam stability':
+            # self.ax.plot(self.centroid_hist_x, self.centroid_hist_y, 'r-', label='centroid')
+            # self.ax.plot(self.peak_hist_x, self.peak_hist_y, 'b-', label='peak cross')
+            # self.ax.xlim(0, self.width)
+            # self.ax.ylim(self.height, 0)
+            # self.ax.plot([0,0],'w.',label=''); self.ax.legend(frameon=False)
+        # elif self.parent.fig_type == 'positions':
+            # # plt.xlabel('$time$ $/s$'); plt.ylabel('$position$ $/\mu m$')
+            # if self.graphs['centroid_x']: self.ax.plot(self.running_time-self.running_time[0], self.centroid_hist_x, 'b-', label='centroid x coordinate')
+            # if self.graphs['centroid_y']: self.ax.plot(self.running_time-self.running_time[0], self.centroid_hist_y, 'r-', label='centroid y coordinate')
+            # if self.graphs['peak_x']: self.ax.plot(self.running_time-self.running_time[0], self.peak_hist_x, 'y-', label='peak x coordinate')
+            # if self.graphs['peak_y']: self.ax.plot(self.running_time-self.running_time[0], self.peak_hist_y, 'g-', label='peak y coordinate')
+            # if self.running_time[-1] - self.running_time[0] <= 60:
+                # self.ax.set_xlim(0, 60)
+            # else:
+                # index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
+                # self.ax.set_xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
+            # self.ax.set_ylim(0,self.width)
+            # self.ax.plot([0,0],'w.'); self.ax.legend(frameon=False)
+        # elif self.parent.fig_type == 'orientation':
+            # if len(self.running_time) > 0:
+                # if self.graphs['ellipse_orientation']: self.ax.plot(self.running_time-self.running_time[0], self.ellipse_hist_angle, 'c-', label='ellipse orientation')
+                # if self.running_time[-1] - self.running_time[0] <= 60:
+                    # self.ax.set_xlim(0, 60)
+                # else:
+                    # index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
+                    # self.ax.set_xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
+            # self.ax.set_ylim(0,360)
+            # self.ax.plot([0,0],'w.',label=''); self.ax.legend(frameon=False)
+        # else:
+            # print 'fig type not found.', self.parent.fig_type
+            
+        # self.ax[0].hold(True)
+        # self.ax[1].hold(True)
+        self.fig.canvas.draw() 
+        
+        for axis in self.fig.get_axes():
+            axis.clear()
+        
+    def close(self):
+        self.parent.plot_frame = None
+        self.close_newwindow()
         self.window.destroy()
         
 class WebcamView(NewWindow):
@@ -351,7 +570,7 @@ class InfoView(NewWindow):
         if len(selected_item) == 1:
             if len(str(selected_item[0])) == 2:
                 index, row_num = map(int,str(selected_item[0]))
-                print 'toggling pass/fail state'
+                print('toggling pass/fail state')
                 if index == 1:
                     if self.parent.raw_passfail[row_num] == 'True':
                         self.parent.raw_passfail[row_num] = 'False'
@@ -371,25 +590,25 @@ class InfoView(NewWindow):
                 index, row_num = map(int,str(selected_item[0]))
                 if index == 1:
                     if self.raw_ybounds[row_num] != (' ', ' '):
-                        print 'getting x and y bounds'
+                        print('getting x and y bounds')
                         passfailbounds = self.change_pass_fail(True, (self.raw_xbounds[row_num], self.raw_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
                             self.raw_xbounds[row_num] = (self.raw_xbounds[row_num][0][:5] + passfailbounds[0], self.raw_xbounds[row_num][1][:5] + passfailbounds[1])
                             self.raw_ybounds[row_num] = (self.raw_ybounds[row_num][0][:5] + passfailbounds[2], self.raw_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
-                        print 'getting x bounds'
+                        print('getting x bounds')
                         passfailbounds = self.change_pass_fail(False, self.raw_xbounds[row_num]) #get just x bounds
                         if passfailbounds is not None:
                             self.raw_xbounds[row_num] = passfailbounds[0], passfailbounds[1]
                 elif index == 2:
                     if self.ellipse_ybounds[row_num] != (' ', ' '):
-                        print 'getting x and y bounds'
+                        print('getting x and y bounds')
                         passfailbounds = self.change_pass_fail(True, (self.ellipse_xbounds[row_num], self.ellipse_ybounds[row_num])) #get x and y bounds
                         if passfailbounds is not None:
                             self.ellipse_xbounds[row_num] = (self.ellipse_xbounds[row_num][0][:5] + passfailbounds[0], self.ellipse_xbounds[row_num][1][:5] + passfailbounds[1])
                             self.ellipse_ybounds[row_num] = (self.ellipse_ybounds[row_num][0][:5] + passfailbounds[2], self.ellipse_ybounds[row_num][1][:5] + passfailbounds[3])
                     else:
-                        print 'getting x bounds'
+                        print('getting x bounds')
                         passfailbounds = self.change_pass_fail(False, self.ellipse_xbounds[row_num]) #get just x bounds
                         if passfailbounds is not None:
                             self.ellipse_xbounds[row_num] = (passfailbounds[0], passfailbounds[1])

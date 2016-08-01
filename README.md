@@ -6,7 +6,7 @@ BiLBO interfaces with a webcam using OpenCV (Open Source Computer Vision Library
 Python's de-facto standard GUI (Graphical User Interface) package.
 In the interests of making the code easy to install and make use of, libraries that are typical to most standard Python distributions 
 were favoured for use. This includes the powerful Numpy and Scipy scientific libraries, as well as the plotting library Matplotlib. 
-If you do not yet have a Python distribution installed, it is reccommended that you use the Anacondad distribution.
+If you do not yet have a Python distribution installed, it is reccommended that you use the Anaconda distribution.
 
 The purpose of this project is to produce an application that is both open-source, cross-platform, and designed for inexpensive hardware.
 Professional laser beam profilers tend to be expensive, using patented algorithms with concealed methods.
@@ -80,31 +80,34 @@ There are a considerations that should be taken into account before using the ap
 
 ![logo](https://cloud.githubusercontent.com/assets/3259632/17253726/d2c25ee8-55a9-11e6-8e87-9d5825df4899.png)
 
-* Calculations              
- Beam Width (4-Sigma), Beam Diameter, Peak Pixel value, Peak Position, Centroid Position, Power Density, Measured Ellipse Axes, Ellipticity, Eccentricity, Orientation|
-* 2D Profile                
- Beam Peak/Centroid/Ellipse
-* 3D Profile                
- Free Rotatable 3D Model
-* X-Y Profiles              
- Measured Data, Gaussian Fit (Storable)
-* Plot Positions over Time  
- Peak and Centroid Position (Storable)
-* Power over Time           
+* **Calculations**            
+ Beam Width (4-Sigma), Beam Diameter, Peak Pixel value, Peak Position, Centroid Position, Power Density, Measured Ellipse Axes, Ellipticity, Eccentricity, Orientation
+ (Exportable)
+* **2D Profile**               
+ Beam Peak/Centroid/Ellipse overlays
+* **3D Profile**              
+ Free Rotatable 3D Model using MayaVi
+* **X-Y Cross Profiles**          
+ Measured Data, Gaussian Fit (Exportable)
+* **Plot Positions over Time** 
+ Peak and Centroid x and y positions (Exportable)
+* **Peak Density over Time**           
  Measured Data (Storable)
-* Pass/Fail Test            
- Selectable Parameters with alerts avaialble when values fall out of the specified range
-* Beam Stability            
- 2D Data of Centroid and Peak Positions over Time
-* Background frame calibration
-* Save Screenshots and Videos to disk
-* Switch between multiple cameras as the application is running
-* Rotate the input frame instead of rotating the laser
-* Save settings to a simple config file, allowing specific configurations depending on the choice of webcam and laser
+* **Pass/Fail Testing**        
+ Selectable Parameters with alerts available when values fall out of the specified range
+* ***Beam Stability**           
+ 2D data of Centroid and Peak Positions over Time
+* **And**
+  * Background frame calibration
+  * Save Screenshots and Videos to disk
+  * Switch between multiple cameras as the application is running
+  * Rotate the input frame instead of rotating the laser
+  * Save settings to a simple config file, allowing specific configurations depending on the choice of webcam and laser
+  * Fully configurable, with custom toolbar configuration and window layout workspaces all available to be saved to a file and loaded on request
 
 ## How to use
 
-Follow these steps in order to make full use of BiLBO:
+Please follow these steps in order to make full use of BiLBO:
 
 1. Load the application by running ```python get_profile.py```.
 2. While the profiler is deactivated, configure your workspace as desired, adjusting the exposure etc if it's not been pre-defined in the config file beforehand.
@@ -128,6 +131,5 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Acknowledgments
 
-* Hat tip to anyone who's code was used
-* Inspiration
-* etc
+* Thank you to my supervisor Dr Jon Goldwin.
+* Thanks to the [Ogden Trust](www.ogdentrust.com) for allowing this internship to be possible.

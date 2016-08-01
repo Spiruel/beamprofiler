@@ -1,9 +1,18 @@
 #!/usr/bin/python
 # -*- coding: latin-1 -*-
 
-import Tkinter as tk
-import ttk
-import tkSimpleDialog, tkMessageBox
+try:
+    # for Python2
+    import Tkinter as tk
+    import ttk
+    import tkSimpleDialog, tkMessageBox
+except ImportError:
+    # for Python3
+    import tkinter as tk
+    import tkinter.ttk as ttk
+    from tkinter import messagebox as tkMessageBox
+    from tkinter import simpledialog as tkSimpleDialog
+    
 import numpy as np
 import time
 import threading

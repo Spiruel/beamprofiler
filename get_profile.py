@@ -68,27 +68,28 @@ def on_closing(controller):
 
 class SplashScreen(Thread): 
     def __init__(self, parent):
+        self.parent = parent
         self.window = tk.Toplevel(parent)
         self.window.overrideredirect(True)
-        self.aturSplash() 
-        self.aturWindow()
-	self.window.update()
+        self.setSplash() 
+        self.setWindow()
+        self.window.update()
 
     def close(self):
         self.window.destroy()
 
-    def aturSplash(self):
-        if np.random.randint(1, 100) == 1:
-            self.gambar = Image.open('images/bilbo.png')
+    def setSplash(self):
+        if np.random.randint(1, 100) <= 1:
+            self.picture = Image.open('images/bilbo.png')
         else:
-            self.gambar = Image.open('images/splash.png')
-        self.imgSplash = ImageTk.PhotoImage(self.gambar)
+            self.picture = Image.open('images/splash.png')
+        self.imgSplash = ImageTk.PhotoImage(self.picture)
 
-    def aturWindow(self):
-        lebar, tinggi = self.gambar.size 
-        setengahLebar = (self.window.winfo_screenwidth()-lebar)//2 
-        setengahTinggi = (self.window.winfo_screenheight()-tinggi)//2
-        self.window.geometry("%ix%i+%i+%i" %(lebar, tinggi, setengahLebar,setengahTinggi))
+    def setWindow(self):
+        width, height = self.picture.size 
+        halfwidth = (self.parent.winfo_screenwidth()-width)//2 
+        halfheight = (self.parent.winfo_screenheight()-height)//2
+        self.window.geometry("%ix%i+%i+%i" %(width, height, halfwidth,halfheight))
         tk.Label(self.window, image=self.imgSplash).pack()
             
 class Application: 
@@ -100,7 +101,7 @@ class Application:
 
         splash_screen = SplashScreen(root)
 
-        print("Loaded spashscreen")
+        print("Loaded splashscreen")
 
         loader_thread = Thread(target = self.load_application)
         loader_thread.start()
@@ -210,6 +211,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.systemlog_frame = None
         self.toolbarconfig_frame = None
         self.webcam_frame = None
+        self.plot_frame = None
         
         self.bg_frame = 0
         self.bg_subtract = 0
@@ -263,7 +265,7 @@ class Controller(tk.Frame, WorkspaceManager):
         windowMenu.add_command(label="Show Webcam Feed", command=self.view_webcam)
         windowMenu.add_separator()
         windowMenu.add_command(label="Calculation Results", command=self.calc_results)
-        windowMenu.add_command(label="x Cross Profile", command=lambda: self.change_fig('x cross profile'))
+        windowMenu.add_command(label="x Cross Profile", command= lambda: self.change_fig('x cross profile')) #self.view_plot
         windowMenu.add_command(label="y Cross Profile", command=lambda: self.change_fig('y cross profile'))
         windowMenu.add_command(label="2D Profile", command=lambda: self.change_fig('2d profile'))
         windowMenu.add_command(label="2D Surface", command=lambda: self.change_fig('2d surface'))
@@ -401,11 +403,11 @@ class Controller(tk.Frame, WorkspaceManager):
         grayscale = self.analysis_frame #np.array(Image.fromarray(self.img).convert('L'))
         
         if self.fig_type == 'x cross profile':
-            if self.peak_cross != None:
+            if self.peak_cross != None and self.peak_cross != (np.nan, np.nan):
                 size = 40 #self.beam_width[0]
-                xs = np.arange(self.width)[self.peak_cross[0]-size:self.peak_cross[0]+size]
-                ys = grayscale[self.peak_cross[1],:]
-                plt.plot(xs, ys[self.peak_cross[0]-size:self.peak_cross[0]+size],'k-')
+                xs = np.arange(self.width)[int(self.peak_cross[0]-size):int(self.peak_cross[0]+size)]
+                ys = grayscale[int(self.peak_cross[1]),:]
+                plt.plot(xs, ys[int(self.peak_cross[0]-size):int(self.peak_cross[0]+size)],'k-')
                 try:
                     popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys,p0=[250,self.peak_cross[0],size], maxfev=50)
                     plt.plot(xs,output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-size:self.peak_cross[0]+size],'r-')
@@ -431,12 +433,12 @@ class Controller(tk.Frame, WorkspaceManager):
                 # plt.xlim(0,self.height)
                 # plt.ylim(0,255)
         elif self.fig_type == '2d profile':
-            if self.peak_cross != None:
+            if self.peak_cross is not None and self.peak_cross != (np.nan, np.nan):
                 if str(self.MA) != 'nan':
                     size = 2*int(self.MA)+10
                 else:
                     size = 50
-                x, y = self.peak_cross
+                x, y = [int(i) for i in self.peak_cross]
                 img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
                 # # # # # params = self.analyse.fit_gaussian(with_bounds=False)
                 # # # # # # # # # self.analyse.plot_gaussian(plt.gca(), params)
@@ -550,7 +552,7 @@ class Controller(tk.Frame, WorkspaceManager):
             plt.ylim(0,360)
             plt.plot([0,0],'w.',label=''); plt.legend(frameon=False)
         else:
-            print 'fig type not found.', self.fig_type
+            self.log('Fig type not found. ' + self.fig_type)
             
         # self.ax[0].hold(True)
         # self.ax[1].hold(True)
@@ -615,7 +617,7 @@ class Controller(tk.Frame, WorkspaceManager):
         '''Switches between camera_indexes and therefore different connected cameras.'''
         if self.camera_index != option and type(option) == int:
             self.camera_index = int(option)
-            print 'camera index change, now updating view...', self.camera_index
+            self.log('Camera index change, now updating view... ' + str(self.camera_index))
             self.cap.release()
             self.init_camera()
     
@@ -714,7 +716,8 @@ class Controller(tk.Frame, WorkspaceManager):
             self.ellipse_hist_angle = np.append(self.ellipse_hist_angle, self.ellipse_angle)
             self.running_time = np.append(self.running_time, time.time()-self.pause_delay) #making sure to account for time that pause has been active
 
-            self.pass_fail_testing()
+            if self.info_frame != None:
+                self.pass_fail_testing()
             
             self.beam_width = self.analyse.get_e2_width(self.peak_cross)
             if self.beam_width is not None:
@@ -739,9 +742,11 @@ class Controller(tk.Frame, WorkspaceManager):
         curr_time = time.time()
         if curr_time - self.plot_time > self.plot_tick and self.active: #if tickrate period elapsed, update the plot with new data
             self.refresh_plot()
+            if self.plot_frame is not None:
+                self.plot_frame.refresh_frame()
             self.tick_counter += 1
             if self.tick_counter > 2 and self.info_frame != None: #if 10 ticks passed update results window
-                self.info_frame.refresh_frame() #need to fix this line. but how?
+                self.info_frame.refresh_frame()
                 self.tick_counter = 0
             self.plot_time = time.time() #update plot time info
             
@@ -834,7 +839,17 @@ class Controller(tk.Frame, WorkspaceManager):
             self.info_frame = self.view('info')
         else:
             self.log('Calculation results already loaded')
-	    self.info_frame.window.lift()
+            self.info_frame.window.lift()
+            self.info_frame.window.deiconify()
+            
+    def view_plot(self):
+        '''Opens plot view'''
+        if self.plot_frame is None:
+            self.plot_frame = self.view('plot')
+        else:
+            self.log('Plot view already loaded')
+            self.plot_frame.window.lift()
+            self.plot_frame.window.deiconify()
         
     def change_config(self):
         '''Opens configuration window'''
@@ -862,6 +877,7 @@ class Controller(tk.Frame, WorkspaceManager):
         else:
             self.log('System logs already loaded')
             self.systemlog_frame.window.lift()
+            self.systemlog_frame.deiconify()
         
     def view_webcam(self):
         '''Opens Webcam Feed'''
@@ -870,6 +886,7 @@ class Controller(tk.Frame, WorkspaceManager):
         else:
             self.log('Webcam window already loaded')
             self.webcam_frame.window.lift()
+            self.webcam_frame.deiconify()
             
     def change_toolbar(self):
         '''Opens Toolbar Settings'''
@@ -953,7 +970,7 @@ class Controller(tk.Frame, WorkspaceManager):
                             self.raw_passfail[index] = 'False' #reset value
                             self.info_frame.refresh_frame()
             if index == 5:
-                print 'check total power'
+                print('check total power')
                                
         for index in np.where(np.array(self.ellipse_passfail) == 'True')[0]:
             x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.info_frame.ellipse_xbounds[index]]
