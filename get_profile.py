@@ -603,14 +603,17 @@ class Controller(tk.Frame, WorkspaceManager):
             
     def view_plot(self, graph):
         '''Opens plot view'''
-        if graph not in [i.fig_type for i in self.plot_frames]:
-            self.plot_frames.append(self.view('plot', graphtype=graph))
-        else:
-            # self.log('Plot view already loaded')
-            for plot in self.plot_frames:
+	print("opening of: " + graph)
+        if graph in [i.fig_type for i in self.plot_frames]:
+	    for plot in self.plot_frames:
                if plot.fig_type == graph:
                    plot.window.lift()
                    plot.window.deiconify()
+		   self.plot_frames.remove(plot)
+		   print("removing old of: " + plot.fig_type)
+        self.plot_frames.append(self.view('plot', graphtype=graph))
+	print("end: " + graph)
+            
         
     def change_config(self):
         '''Opens configuration window'''
