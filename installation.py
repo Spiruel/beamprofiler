@@ -10,9 +10,10 @@ def install(package):
 proceed = raw_input('Accepting the following will install BiLBO into the working directory of your machine. Do you wish to continue? y/n ')
 if proceed.lower() in ['yes','y','yeah','yup','ya','oui','si','yesicompletelyagree','anykey','whereistheanykey']:
     for package in requirements:
+        if 'Pillow' in package: package = 'PIL'
+        if 'PyAudio' in package: package = 'pyaudio'
         try:
-            importing = package.split('==')[0]
-            import importing
+            __import__(package.split('==')[0])
         except ImportError, e:
             install(package) # module doesn't exist, deal with it.
 
@@ -20,7 +21,7 @@ if proceed.lower() in ['yes','y','yeah','yup','ya','oui','si','yesicompletelyagr
     if not os.path.exists(source_filename):
         zip_file_url = 'https://github.com/Spiruel/beamprofiler/zipball/master/'
         file_name = 'BiLBO'
-       
+        print('Downloading files...')
         r = requests.get(zip_file_url, stream=True)
         z = zipfile.ZipFile(StringIO.StringIO(r.content))
         z.extractall()

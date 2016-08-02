@@ -6,6 +6,7 @@
 *.spec
 
 test.py
+setup.py
 
 Beam_Profiler.egg-info/
 build/

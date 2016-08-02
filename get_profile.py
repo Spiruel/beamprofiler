@@ -127,8 +127,9 @@ class Application:
         control.load_camera_menu(self.camera_count)
         control.load_workspace()
         w, h = control.parent.winfo_screenwidth(), control.parent.winfo_screenwidth()
-        control.parent.geometry('%dx%d+%d+%d' % (2*w, w/3 - 17, 0, 0))
-
+        control.parent.minsize(w,95)
+        control.parent.geometry('%dx%d+%d+%d' % (2*w, 95, -6, 2)) #geometry of the main window
+        
         print("Loaded application. Closing splashscreen")
         splash_screen.close()
         print('Showing main window and starting application loop')
@@ -143,34 +144,42 @@ class Controller(tk.Frame, WorkspaceManager):
         self.lmain = tk.Label(parent)
         self.lmain.pack()
         
-        WorkspaceManager.__init__(self, parent)
-
+        self.profiler_state = tk.IntVar() #for profiler state
         self.active = False #whether profiler is active or just looking at webcam view
+        self.logs = [] #system logs
+        
+        self.info_frame = None
+        self.config_frame = None
+        self.passfail_frame = None
+        self.systemlog_frame = None
+        self.toolbarconfig_frame = None
+        self.webcam_frame = None
+        self.plot_frames = []
         self.pause_delay = 0 #time delay for when profiler is inactive. cumulatively adds.
         self.last_pause = time.time() #last time profiler was inactive
+
         self.plot_time = self.last_pause  #various parameters ters used throughout the profiler are initialised here
         self.angle = 0.0 #setting initial angles, region of interest, exposure time etc
         self.roi = 1
         self.exp = -1
-        self.logs = [] #system logs
         self.toolbarbuttons = [] #active buttons on the toolbar
-        self.toolbaractions = {'x cross profile': ['x cross profile', tk.PhotoImage(file='images/x_profile.gif')], #accessible images for toolbarbuttons
-                              'y cross profile': ['y cross profile', tk.PhotoImage(file='images/y_profile.gif')],
-                              '2d profile': ['2d profile', tk.PhotoImage(file='images/2d_profile.gif')],
-                              '2d surface': ['2d surface', tk.PhotoImage(file='images/3d_profile.gif')],
-                              'plot positions': ['positions', tk.PhotoImage(file='images/positions.gif')],
-                              'beam stability': ['beam stability', tk.PhotoImage(file='images/beam_stability.gif')],
-                              'plot orientation': ['orientation', tk.PhotoImage(file='images/orientation.gif')],
-                              'increase exposure': ['inc_exp', tk.PhotoImage(file='images/increase_exp.gif')],
-                              'decrease exposure': ['dec_exp', tk.PhotoImage(file='images/decrease_exp.gif')],
-                              'view log': ['view_log', tk.PhotoImage(file='images/log.gif')],
-                              'show windows': ['show windows', tk.PhotoImage(file='images/show_windows.gif')],
-                              'clear windows': ['clear windows', tk.PhotoImage(file='images/clear_windows.gif')],
-                              'basic workspace': ['basic workspace', tk.PhotoImage(file='images/basic_workspace.gif')],
-                              'load workspace': ['load workspace', tk.PhotoImage(file='images/load_workspace.gif')],
-                              'save workspace': ['save workspace', tk.PhotoImage(file='images/save_workspace.gif')],
-                              'show webcam': ['show webcam', tk.PhotoImage(file='images/show_webcam.gif')],
-                              'calculation results': ['calculation results', tk.PhotoImage(file='images/calc_results.gif')]
+        self.toolbaractions = {'x cross profile': ['x cross profile', tk.PhotoImage(file='images/x_profile.gif').subsample(2, 2)], #accessible images for toolbarbuttons
+                              'y cross profile': ['y cross profile', tk.PhotoImage(file='images/y_profile.gif').subsample(2, 2)],
+                              '2d profile': ['2d profile', tk.PhotoImage(file='images/2d_profile.gif').subsample(2, 2)],
+                              '2d surface': ['2d surface', tk.PhotoImage(file='images/3d_profile.gif').subsample(2, 2)],
+                              'plot positions': ['positions', tk.PhotoImage(file='images/positions.gif').subsample(2, 2)],
+                              'beam stability': ['beam stability', tk.PhotoImage(file='images/beam_stability.gif').subsample(2, 2)],
+                              'plot orientation': ['orientation', tk.PhotoImage(file='images/orientation.gif').subsample(2, 2)],
+                              'increase exposure': ['inc_exp', tk.PhotoImage(file='images/increase_exp.gif').subsample(2, 2)],
+                              'decrease exposure': ['dec_exp', tk.PhotoImage(file='images/decrease_exp.gif').subsample(2, 2)],
+                              'view log': ['view_log', tk.PhotoImage(file='images/log.gif').subsample(2, 2)],
+                              'show windows': ['show windows', tk.PhotoImage(file='images/show_windows.gif').subsample(2, 2)],
+                              'clear windows': ['clear windows', tk.PhotoImage(file='images/clear_windows.gif').subsample(2, 2)],
+                              'basic workspace': ['basic workspace', tk.PhotoImage(file='images/basic_workspace.gif').subsample(2, 2)],
+                              'load workspace': ['load workspace', tk.PhotoImage(file='images/load_workspace.gif').subsample(2, 2)],
+                              'save workspace': ['save workspace', tk.PhotoImage(file='images/save_workspace.gif').subsample(2, 2)],
+                              'show webcam': ['show webcam', tk.PhotoImage(file='images/show_webcam.gif').subsample(2, 2)],
+                              'calculation results': ['calculation results', tk.PhotoImage(file='images/calc_results.gif').subsample(2, 2)]
                                }
         self.toolbaroptions = ['x Cross Profile', 'y Cross Profile'] #initial choices for active buttons on toolbar
         self.camera_index = 0
@@ -179,7 +188,6 @@ class Controller(tk.Frame, WorkspaceManager):
         self.peak_cross = None
         self.power = np.nan
         self.colourmap = None
-        self.fig_type = 'x cross profile'
         self.style_sheet = 'default'
         self.graphs = { #if graphs are shown or not
         'centroid_x':True,
@@ -198,6 +206,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.plot_tick = 0.1 #refresh rate of plots in sec
         self.pixel_scale = 5.6 #default pixel scale of webcam in um
         
+        self.basic_workspace = [(0.4166666666666667, 0.4166666666666667, 0.4127604166666667, 0.7314814814814815, 'plot', 'x cross profile'), (0.4166666666666667, 0.4166666666666667, 0.8307291666666666, 0.7314814814814815, 'plot', 'y cross profile'), (0.4166666666666667, 0.41898148148148145, -0.004557291666666667, 0.7280092592592593, 'webcam'), (1.2454427083333333, 0.5, -0.0032552083333333335, 0.1863425925925926, 'plot', 'positions')]
         self.workspace = []
         self.width, self.height  = 1,1
         # self.stream = output.SoundFeedback(self)
@@ -209,14 +218,6 @@ class Controller(tk.Frame, WorkspaceManager):
         self.raw_passfail = ['False'] * 6
         self.ellipse_passfail = ['False'] * 4   
                         
-        self.info_frame = None
-        self.config_frame = None
-        self.passfail_frame = None
-        self.systemlog_frame = None
-        self.toolbarconfig_frame = None
-        self.webcam_frame = None
-        self.plot_frame = None
-        
         self.bg_frame = 0
         self.bg_subtract = 0
 
@@ -224,10 +225,11 @@ class Controller(tk.Frame, WorkspaceManager):
         self.parent = parent
         self.var = tk.IntVar()
         
+        WorkspaceManager.__init__(self, parent) #initialise workspace manager class for arrangment of windows
+        self.read_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
+        
         self.statusbar = tk.Frame(self.parent)
         self.progress = interface.Progress(self)
-        
-        self.read_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
 
         # **** Status Bar ****
         self.status = tk.StringVar()
@@ -269,15 +271,15 @@ class Controller(tk.Frame, WorkspaceManager):
         windowMenu.add_command(label="Show Webcam Feed", command=self.view_webcam)
         windowMenu.add_separator()
         windowMenu.add_command(label="Calculation Results", command=self.calc_results)
-        windowMenu.add_command(label="x Cross Profile", command= lambda: self.change_fig('x cross profile')) #self.view_plot
-        windowMenu.add_command(label="y Cross Profile", command=lambda: self.change_fig('y cross profile'))
-        windowMenu.add_command(label="2D Profile", command=lambda: self.change_fig('2d profile'))
-        windowMenu.add_command(label="2D Surface", command=lambda: self.change_fig('2d surface'))
+        windowMenu.add_command(label="x Cross Profile", command=lambda: self.view_plot('x cross profile'))
+        windowMenu.add_command(label="y Cross Profile", command=lambda: self.view_plot('y cross profile'))
+        windowMenu.add_command(label="2D Profile", command=lambda: self.view_plot('2d profile'))
+        windowMenu.add_command(label="2D Surface", command=lambda: self.view_plot('2d surface'))
         windowMenu.add_separator()
-        windowMenu.add_command(label="Plot Positions", command=lambda: self.change_fig('positions'))
-        windowMenu.add_command(label="Plot Orientation", command=lambda: self.change_fig('orientation'))
+        windowMenu.add_command(label="Plot Positions", command=lambda: self.view_plot('positions'))
+        windowMenu.add_command(label="Plot Orientation", command=lambda: self.view_plot('orientation'))
         windowMenu.add_separator()
-        windowMenu.add_command(label="Beam Stability", command=lambda: self.change_fig('beam stability'))
+        windowMenu.add_command(label="Beam Stability", command=lambda: self.view_plot('beam stability'))
         menubar.add_cascade(label="Windows", menu=windowMenu)
         
         imageMenu = tk.Menu(menubar, tearoff=1)       
@@ -309,64 +311,16 @@ class Controller(tk.Frame, WorkspaceManager):
           
         # **** Tool Bar ****
         self.toolbar = tk.Frame(self.parent)
-        
-        self.variable4 = tk.IntVar()
-        self.pb = tk.Checkbutton(self.toolbar, text="Profiler Active (<space>)", variable=self.variable4, command=self.profiler_active)
+
+        self.pb = tk.Checkbutton(self.toolbar, text="Profiler Active (<space>)", variable=self.profiler_state, command=self.profiler_active)
         self.pb.pack(side=tk.LEFT, padx=2, pady=2)
         
-        self.cog = tk.PhotoImage(file='images/cog.gif')
-        insertButt = tk.Button(self.toolbar, image=self.cog, text="Customise Toolbar", command=self.change_toolbar)
+        self.cog = tk.PhotoImage(file='images/cog.gif').subsample(2, 2)
+        insertButt = tk.Button(self.toolbar, image=self.cog, width=32, height=32, text="Customise Toolbar", command=self.change_toolbar)
         insertButt.pack(side=tk.LEFT, padx=(2, 20), pady=2)
         
-        self.toolbar.pack(side=tk.TOP, fill=tk.X)
-       
-        labelframe = tk.Frame(self) #left hand frame for various sliders and tweakables for direct control
-        labelframe.pack(side=tk.LEFT) #.grid(row=0, column=0) 
-               
-        # self.variable3 = tk.StringVar(labelframe)
-        # self.variable3.set("x cross profile")
-        # self.dropdown3 = tk.OptionMenu(labelframe, self.variable3, "x cross profile", "y cross profile", "2d profile","2d surface", "beam stability", "positions", "orientation", command = self.change_fig)
-        # self.dropdown3.pack()
-              
-        # self.scale2 = tk.Scale(labelframe, label='ROI',
-            # from_=1, to=50,
-            # length=300, tickinterval=5,
-            # showvalue='yes', 
-            # orient='horizontal',
-            # command = self.set_roi)
-        # self.scale2.pack()
-               
-        # self.scale2 = tk.Scale(labelframe, label='gain',
-            # from_=-10000, to=10000,
-            # length=300, tickinterval=1,
-            # showvalue='yes', 
-            # orient='horizontal',
-            # command = self.change_gain)
-        # self.scale2.pack()
-        
-        # self.scale3 = tk.Scale(labelframe, label='rotate',
-            # from_=0, to=360,
-            # length=300, tickinterval=30,
-            # showvalue='yes', 
-            # orient='horizontal',
-            # command = self.set_angle)
-        # self.scale3.pack()
-        
-        self.var1 = tk.IntVar(self.parent); self.var1.set(1)
-        b = tk.Checkbutton(labelframe, text="Centroid x position", command=lambda: self.toggle_graph('centroid_x'), variable=self.var1)
-        b.pack(fill=tk.BOTH)
-        self.var2 = tk.IntVar(self.parent); self.var2.set(1)
-        b = tk.Checkbutton(labelframe, text="Centroid y position", command=lambda: self.toggle_graph('centroid_y'), variable=self.var2)
-        b.pack(fill=tk.BOTH)
-        self.var3 = tk.IntVar(self.parent); self.var3.set(1)
-        b = tk.Checkbutton(labelframe, text="Peak x position", command=lambda: self.toggle_graph('peak_x'), variable=self.var3)
-        b.pack(fill=tk.BOTH)
-        self.var4 = tk.IntVar(self.parent); self.var4.set(1)
-        b = tk.Checkbutton(labelframe, text="Peak y position", command=lambda: self.toggle_graph('peak_y'), variable=self.var4)
-        b.pack(fill=tk.BOTH)
-        self.var5 = tk.IntVar(self.parent); self.var5.set(1)
-        b = tk.Checkbutton(labelframe, text="Ellipse_orientation", command=lambda: self.toggle_graph('ellipse_orientation'), variable=self.var5)
-        b.pack(fill=tk.BOTH)
+        self.toolbar.pack(side=tk.TOP, fill=tk.X)       
+        # **** End of Tool Bar ****
         
         # b = tk.Button(labelframe, text="Start Sound", command=lambda: self.stream.streamer.start_stream())
         # b.pack(fill=tk.BOTH)
@@ -376,203 +330,15 @@ class Controller(tk.Frame, WorkspaceManager):
         newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
         for button in newbuttons:
             self.update_toolbar(button)
-        
-        self.make_fig() #make figure environment
 
     def load_camera_menu(self, camera_count):
         for i in range(camera_count):
             self.camera_menu.add_command(label=str(i), command= lambda i=i: self.change_cam(i))
         
-    def make_fig(self):
-        '''Creates a matplotlib figure to be placed in the GUI.'''
-        plt.clf()
-        plt.cla()
-        
-        self.fig = plt.figure(figsize=(16,9), dpi=100)
-        if self.fig_type == '2d surface':
-            self.fig = Figure(figsize=(16,9), projection='3d', dpi=100)
-
-        canvas = FigureCanvasTkAgg(self.fig, self) 
-        canvas.show() 
-        canvas.get_tk_widget().pack() 
-
-        toolbar = NavigationToolbar2TkAgg(canvas, self) 
-        toolbar.update() 
-        canvas._tkcanvas.pack()
-        
-        self.change_style(self.style_sheet, set=True)
-        
     def refresh_plot(self):
-        '''Updates the matplotlib figure with new data.'''
-        grayscale = self.analysis_frame #np.array(Image.fromarray(self.img).convert('L'))
-        
-        if self.fig_type == 'x cross profile':
-            if self.peak_cross != None and self.peak_cross != (np.nan, np.nan):
-                size = 40 #self.beam_width[0]
-                xs = np.arange(self.width)[int(self.peak_cross[0]-size):int(self.peak_cross[0]+size)]
-                ys = grayscale[int(self.peak_cross[1]),:]
-                plt.plot(xs, ys[int(self.peak_cross[0]-size):int(self.peak_cross[0]+size)],'k-')
-                try:
-                    popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys,p0=[250,self.peak_cross[0],size], maxfev=50)
-                    plt.plot(xs,output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-size:self.peak_cross[0]+size],'r-')
-                except:
-                    pass
-                    # self.log('Problem! Could not fit x gaussian!')
-                
-                # plt.xlim(0,self.width)
-                # plt.ylim(0,255)
-        elif self.fig_type == 'y cross profile':
-            if self.peak_cross != None:
-                size = 40 #self.beam_width[1]
-                xs = np.arange(self.height)[self.peak_cross[1]-size:self.peak_cross[1]+size]
-                ys = grayscale[:,self.peak_cross[0]]
-                plt.plot(xs, ys[self.peak_cross[1]-size:self.peak_cross[1]+size],'k-')
-                try:
-                    popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys,p0=[250,self.peak_cross[1],size], maxfev=50)
-                    plt.plot(xs,output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-size:self.peak_cross[1]+size],'r-')
-                except:
-                    pass
-                    # self.log('Problem! Could not fit x gaussian!')
-                
-                # plt.xlim(0,self.height)
-                # plt.ylim(0,255)
-        elif self.fig_type == '2d profile':
-            if self.peak_cross is not None and self.peak_cross != (np.nan, np.nan):
-                if str(self.MA) != 'nan':
-                    size = 2*int(self.MA)+10
-                else:
-                    size = 50
-                x, y = [int(i) for i in self.peak_cross]
-                img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
-                # # # # # params = self.analyse.fit_gaussian(with_bounds=False)
-                # # # # # # # # # self.analyse.plot_gaussian(plt.gca(), params)
-                
-                if self.colourmap is None:
-                    cmap=plt.cm.BrBG
-                elif self.colourmap == 2:
-                    cmap=plt.cm.jet
-                elif self.colourmap == 0:
-                    cmap=plt.cm.autumn
-                elif self.colourmap == 1:
-                    cmap=plt.cm.bone
-                elif self.colourmap == 12:
-                    cmap=output.parula_cm
-                plt.imshow(img, cmap=cmap, interpolation='nearest', origin='lower')
-                
-                xs = np.arange(size)
-                ys_x = grayscale[self.peak_cross[1],:]
-                ys_y = grayscale[:,self.peak_cross[0]]
-                norm_factor = np.max(ys_x)/(0.25*size)
-
-                try:
-                    plt.plot(xs, size - (ys_x[self.peak_cross[0]-(size/2):self.peak_cross[0]+(size/2)]/norm_factor),'y-', lw=2)
-                    plt.plot(ys_y[self.peak_cross[1]-(size/2):self.peak_cross[1]+(size/2)]/norm_factor, xs,'y-', lw=2)
-                except:
-                    return
-                
-                try:
-                    popt,pcov = curve_fit(output.gauss,np.arange(self.width),ys_x,p0=[250,self.peak_cross[0],20], maxfev=50)
-                    plt.plot(xs,size - output.gauss(np.arange(self.width),*popt)[self.peak_cross[0]-(size/2):self.peak_cross[0]+(size/2)]/norm_factor,'r-', lw=2)
-                except:
-                    pass
-                    # self.log('Problem! Could not fit x gaussian!')
-                    
-                try:
-                    popt,pcov = curve_fit(output.gauss,np.arange(self.height),ys_y,p0=[250,self.peak_cross[1],20], maxfev=50)
-                    plt.plot(output.gauss(np.arange(self.height),*popt)[self.peak_cross[1]-(size/2):self.peak_cross[1]+(size/2)]/norm_factor,xs,'r-', lw=2)
-                except:
-                    pass
-                    # self.log('Problem! Could not fit y gaussian!')
-                
-                if str(self.ellipse_angle) != 'nan':
-                    x_displace, y_displace = self.peak_cross[0]-(size/2), self.peak_cross[1]-(size/2)
-                    
-                    pts = self.analyse.get_ellipse_coords(a=self.ma, b=self.MA, x=self.ellipse_x, y=self.ellipse_y, angle=-self.ellipse_angle)
-                    plt.plot(pts[:,0] - (x_displace), pts[:,1] - (y_displace))
-                    
-                    MA_x, MA_y = self.ma*math.cos(self.ellipse_angle*(np.pi/180)), self.ma*math.sin(self.ellipse_angle*(np.pi/180))
-                    ma_x, ma_y = self.MA*math.sin(self.ellipse_angle*(np.pi/180)), self.MA*math.cos(self.ellipse_angle*(np.pi/180))
-                    MA_xtop, MA_ytop = int(self.ellipse_x + MA_x), int(self.ellipse_y + MA_y)
-                    MA_xbot, MA_ybot = int(self.ellipse_x - MA_x), int(self.ellipse_y - MA_y)
-                    ma_xtop, ma_ytop = int(self.ellipse_x + ma_x), int(self.ellipse_y + ma_y) #find corners of ellipse
-                    ma_xbot, ma_ybot = int(self.ellipse_x - ma_x), int(self.ellipse_y - ma_y)
-                    
-                    plt.plot([MA_xtop - (x_displace), MA_xbot - (x_displace)], [MA_ytop - (y_displace), MA_ybot - (y_displace)], 'w-', lw=2)
-                    plt.plot([ma_xtop - (x_displace), ma_xbot - (x_displace)], [ma_ybot - (y_displace), ma_ytop - (y_displace)], 'w:', lw=2)
-                    
-                plt.xlim(0, size)
-                plt.ylim(size, 0)
-                
-                # majorLocator = MultipleLocator(10)
-                # majorFormatter = FormatStrFormatter('%d')
-                # minorLocator = MultipleLocator(1)
-
-                # ax = plt.gca()
-                # ax.xaxis.set_major_locator(majorLocator)
-                # ax.xaxis.set_major_formatter(majorFormatter)
-
-                # # for the minor ticks, use no labels; default NullFormatter
-                # ax.xaxis.set_minor_locator(minorLocator)
-                # ax.yaxis.set_minor_locator(minorLocator)
-                
-                # ax.tick_params(which='both', width=1.5, color='w')
-                # ax.tick_params(which='major', length=8)
-                # ax.tick_params(which='minor', length=4)
-        elif self.fig_type == '2d surface':
-            ax = self.fig.add_subplot(1,1,1,projection='3d')
-            z = np.asarray(grayscale)[100:250,250:400]
-            z = zoom(z, 0.25)
-            mydata = z[::1,::1]
-            x,y = np.mgrid[:mydata.shape[0],:mydata.shape[1]]
-            ax.plot_surface(x,y,mydata,cmap=plt.cm.jet,rstride=1,cstride=1,linewidth=0.,antialiased=False)
-            ax.set_zlim3d(0,255)
-        elif self.fig_type == 'beam stability':
-            plt.plot(self.centroid_hist_x, self.centroid_hist_y, 'r-', label='centroid')
-            plt.plot(self.peak_hist_x, self.peak_hist_y, 'b-', label='peak cross')
-            plt.xlim(0, self.width)
-            plt.ylim(self.height, 0)
-            plt.plot([0,0],'w.',label=''); plt.legend(frameon=False)
-        elif self.fig_type == 'positions':
-            # plt.xlabel('$time$ $/s$'); plt.ylabel('$position$ $/\mu m$')
-            if self.graphs['centroid_x']: plt.plot(self.running_time-self.running_time[0], self.centroid_hist_x, 'b-', label='centroid x coordinate')
-            if self.graphs['centroid_y']: plt.plot(self.running_time-self.running_time[0], self.centroid_hist_y, 'r-', label='centroid y coordinate')
-            if self.graphs['peak_x']: plt.plot(self.running_time-self.running_time[0], self.peak_hist_x, 'y-', label='peak x coordinate')
-            if self.graphs['peak_y']: plt.plot(self.running_time-self.running_time[0], self.peak_hist_y, 'g-', label='peak y coordinate')
-            if self.running_time[-1] - self.running_time[0] <= 60:
-                plt.xlim(0, 60)
-            else:
-                index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
-                plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
-            plt.ylim(0,self.width)
-            plt.plot([0,0],'w.'); plt.legend(frameon=False)
-        elif self.fig_type == 'orientation':
-            if len(self.running_time) > 0:
-                if self.graphs['ellipse_orientation']: plt.plot(self.running_time-self.running_time[0], self.ellipse_hist_angle, 'c-', label='ellipse orientation')
-                if self.running_time[-1] - self.running_time[0] <= 60:
-                    plt.xlim(0, 60)
-                else:
-                    index = np.searchsorted(self.running_time,[self.running_time[-1]-60,],side='right')[0]
-                    plt.xlim(self.running_time[index]-self.running_time[0], self.running_time[-1]-self.running_time[0])
-            plt.ylim(0,360)
-            plt.plot([0,0],'w.',label=''); plt.legend(frameon=False)
-        else:
-            self.log('Fig type not found. ' + self.fig_type)
-            
-        # self.ax[0].hold(True)
-        # self.ax[1].hold(True)
-        self.fig.canvas.draw() 
-        
-        for axis in self.fig.get_axes():
-            axis.clear()
-    
-    def change_fig(self, option):
-        '''Changes the fig used.'''
-        if self.fig_type != option:
-            self.log('Changed fig ' + option)
-            self.fig_type = option
-            plt.cla()
-            plt.clf()
-            self.refresh_plot()
+        if len(self.plot_frames) > 0:
+            for plot in self.plot_frames:
+                plot.refresh_frame()
             
     def change_style(self, option, set=False):
         '''Changes the style sheet used in the plot'''
@@ -670,10 +436,7 @@ class Controller(tk.Frame, WorkspaceManager):
             cv2image = self.rotate_image(cv2image)
         
         self.analysis_frame = cv2.cvtColor(analysis_frame,cv2.COLOR_BGR2GRAY) # convert to greyscale
-        
-        # cv2.line(cv2image, (50, 50), (50+28*2, 50), 255, thickness=4)
-        # cv2.putText(cv2image, str(round(((28*2*self.pixel_scale)/self.roi),2)) + ' um', (47, 45), cv2.FONT_HERSHEY_PLAIN, .8, (255,255,255))
-        
+
         if self.active:
 
             peak_cross = self.analyse.find_peak()
@@ -699,8 +462,6 @@ class Controller(tk.Frame, WorkspaceManager):
                     self.centroid = None
             else:
                 self.centroid = None
-                # peak_cross = (np.nan, np.nan)
-                # self.peak_cross = None
         
             ellipses = self.analyse.find_ellipses() #fit ellipse and print data to screen
             if ellipses != None:
@@ -733,11 +494,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.status.set(status_string)
                 
         self.imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
-            
-        # lmain.imgtk = self.imgtk
-        # lmain.configure(image=self.imgtk)
-        # lmain.after(10, self.show_frame)
-        
+
         if self.webcam_frame is not None:
             self.webcam_frame.show_frame()
         self.lmain.after(10, self.show_frame)
@@ -746,8 +503,6 @@ class Controller(tk.Frame, WorkspaceManager):
         curr_time = time.time()
         if curr_time - self.plot_time > self.plot_tick and self.active: #if tickrate period elapsed, update the plot with new data
             self.refresh_plot()
-            if self.plot_frame is not None:
-                self.plot_frame.refresh_frame()
             self.tick_counter += 1
             if self.tick_counter > 2 and self.info_frame != None: #if 10 ticks passed update results window
                 self.info_frame.refresh_frame()
@@ -767,12 +522,12 @@ class Controller(tk.Frame, WorkspaceManager):
     def profiler_active(self, option=False):
         '''Turns profiling mode on or off'''
         if option: #toggle box state if using key binding to toggle. if using box then sets correct box state, ticked or not ticked
-            if self.variable4.get() == 1:
+            if self.profiler_state.get() == 1:
                 box = False
             else:
                 box = True
         else:
-            if self.variable4.get() == 1:
+            if self.profiler_state.get() == 1:
                 box = True
             else:
                 box = False
@@ -846,14 +601,16 @@ class Controller(tk.Frame, WorkspaceManager):
             self.info_frame.window.lift()
             self.info_frame.window.deiconify()
             
-    def view_plot(self):
+    def view_plot(self, graph):
         '''Opens plot view'''
-        if self.plot_frame is None:
-            self.plot_frame = self.view('plot')
+        if graph not in [i.fig_type for i in self.plot_frames]:
+            self.plot_frames.append(self.view('plot', graphtype=graph))
         else:
             # self.log('Plot view already loaded')
-            self.plot_frame.window.lift()
-            self.plot_frame.window.deiconify()
+            for plot in self.plot_frames:
+               if plot.fig_type == graph:
+                   plot.window.lift()
+                   plot.window.deiconify()
         
     def change_config(self):
         '''Opens configuration window'''
@@ -928,27 +685,29 @@ class Controller(tk.Frame, WorkspaceManager):
     def update_toolbar(self, button):
         '''Adds buttons to the toolbar that have been chosen'''
         if button.lower() in self.toolbaractions.keys():
-            if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'calculation results', 'show windows', 'clear windows', 'save workspace', 'load workspace', 'show webcam']:
+            if self.toolbaractions[button.lower()][0] in ['inc_exp', 'dec_exp', 'view_log', 'calculation results', 'show windows', 'clear windows', 'save workspace', 'load workspace', 'show webcam', 'basic workspace']:
                 if self.toolbaractions[button.lower()][0] == 'view_log':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command=self.view_log), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command=self.view_log), button])
                 elif self.toolbaractions[button.lower()][0] == 'clear windows':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.close_all), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= self.close_all), button])
                 elif self.toolbaractions[button.lower()][0] == 'inc_exp':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(1)), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(1)), button])
                 elif self.toolbaractions[button.lower()][0] == 'dec_exp':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(-1)), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= lambda: self.adjust_exp(-1)), button])
                 elif self.toolbaractions[button.lower()][0] == 'load workspace':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.load_workspace), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= self.load_workspace), button])
                 elif self.toolbaractions[button.lower()][0] == 'save workspace':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.save_workspace), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= self.save_workspace), button])
                 elif self.toolbaractions[button.lower()][0] == 'show webcam':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.view_webcam), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= self.view_webcam), button])
                 elif self.toolbaractions[button.lower()][0] == 'show windows':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.show_all), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= self.show_all), button])
                 elif self.toolbaractions[button.lower()][0] == 'calculation results':
-                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= self.calc_results), button])
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= self.calc_results), button])
+                elif self.toolbaractions[button.lower()][0] == 'basic workspace':
+                    self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= lambda: self.load_workspace(workspace=self.basic_workspace)), button])
             else:
-                self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, image=self.toolbaractions[button.lower()][1], command= lambda: self.change_fig(self.toolbaractions[button.lower()][0])), button])
+                self.toolbarbuttons.append([tk.Button(self.toolbar, text=button, height=32, width=32, image=self.toolbaractions[button.lower()][1], command= lambda: self.view_plot(self.toolbaractions[button.lower()][0])), button])
         else:
             self.toolbarbuttons.append([tk.Button(self.toolbar, text=button), button])
         self.toolbarbuttons[-1][0].pack(side=tk.LEFT, padx=2, pady=2)
@@ -1069,16 +828,23 @@ class Controller(tk.Frame, WorkspaceManager):
                 self.camera_index = int(config.get('Miscellaneous', 'camera_index'))
             if config.has_option('Miscellaneous', 'style_sheet'):
                 self.style_sheet = config.get('Miscellaneous', 'style_sheet')
-            if config.has_option('Miscellaneous', 'fig_type'):
-                self.fig_type = config.get('Miscellaneous', 'fig_type')
             if config.has_option('Miscellaneous', 'workspace'):
                 windows = config.get('Miscellaneous', 'workspace').replace(', ',',').split('),')
                 self.workspace = []
                 for window in windows:
-                    w, h, x, y, windowtype = window[1:-1].split(',')
-                    windowtype = windowtype.replace('\'','')
-                    self.workspace.append((float(w), float(h), float(x), float(y), windowtype))
-                
+                    window_params = window[1:-1].split(',')
+                    if len(window_params) == 6:
+                        w, h, x, y, windowtype, graphtype = window[1:-1].split(',')
+                        windowtype = windowtype.replace('\'','')
+                        graphtype = graphtype.replace('\'','').replace('"','')
+                        self.workspace.append((float(w), float(h), float(x), float(y), windowtype, graphtype))
+                    elif len(window_params) == 5:
+                        w, h, x, y, windowtype = window[1:-1].split(',')
+                        windowtype = windowtype.replace('\'','')
+                        self.workspace.append((float(w), float(h), float(x), float(y), windowtype))
+                    else:
+                        self.log('Could not find workspace details.')
+                        
     def TrueFalse(self, x):
         if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan' and x is not False:
             if self.active:
