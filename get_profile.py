@@ -27,20 +27,10 @@ import numpy as np
 import time
 import math
 
-from mpl_toolkits.mplot3d import Axes3D
-from scipy.optimize import curve_fit
-from scipy.ndimage.interpolation import zoom
-                
-# import matplotlib
-# matplotlib.use('TkAgg')
-
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
-import matplotlib.pyplot as plt
-from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-
 from functools import partial
 from threading import Thread
-from time import sleep
+
+import matplotlib.pyplot as plt
 
 def clear_capture(capture):
     capture.release()
@@ -194,12 +184,15 @@ class Controller(tk.Frame, WorkspaceManager):
         'centroid_y':True,
         'peak_x':True,
         'peak_y':True,
-        'ellipse_orientation':True
+        'ellipse_orientation':True,
+        'centroid':True,
+        'peak cross':True
         }
         self.running_time = np.array([]) #arrays for information logged throughout the running period
         self.centroid_hist_x, self.centroid_hist_y = np.array([]), np.array([])
         self.peak_hist_x, self.peak_hist_y = np.array([]), np.array([])
-        self.ellipse_hist_angle = np.array([])
+        self.ellipse_hist_angle, self.ma_hist, self.MA_hist, self.ellipticity_hist, self.eccentricity_hist = np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
+        self.width_hist = np.array([])
         self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = np.nan, np.nan, np.nan, np.nan, None
         self.ellipticity, self.eccentricity = None, None
         self.tick_counter = 0
@@ -242,14 +235,14 @@ class Controller(tk.Frame, WorkspaceManager):
         self.parent.title('BiLBO')
         
         ###################################################################NAVBAR
-        menubar = tk.Menu(self.parent)
-        fileMenu = tk.Menu(menubar, tearoff=1)
+        self.menubar = tk.Menu(self.parent)
+        fileMenu = tk.Menu(self.menubar, tearoff=1)
         fileMenu.add_command(label="Export Data", command=self.save_csv)
         fileMenu.add_separator()
         fileMenu.add_command(label="Quit", command=self.close_window)
-        menubar.add_cascade(label="File", menu=fileMenu)
+        self.menubar.add_cascade(label="File", menu=fileMenu)
         
-        controlMenu = tk.Menu(menubar, tearoff=1)
+        controlMenu = tk.Menu(self.menubar, tearoff=1)
         self.camera_menu = tk.Menu(controlMenu, tearoff=1)
         controlMenu.add_command(label="Edit Config", command=self.change_config)
         controlMenu.add_command(label="View System Log", command= self.view_log)
@@ -264,9 +257,9 @@ class Controller(tk.Frame, WorkspaceManager):
         controlMenu.add_separator()
         controlMenu.add_command(label="Load Workspace", command= self.load_workspace)
         controlMenu.add_command(label="Save Workspace", command= self.save_workspace)
-        menubar.add_cascade(label="Control", menu=controlMenu)
+        self.menubar.add_cascade(label="Control", menu=controlMenu)
 
-        windowMenu = tk.Menu(menubar, tearoff=1)
+        windowMenu = tk.Menu(self.menubar, tearoff=1)
         submenu = tk.Menu(windowMenu, tearoff=1)
         windowMenu.add_command(label="Show Webcam Feed", command=self.view_webcam)
         windowMenu.add_separator()
@@ -280,9 +273,9 @@ class Controller(tk.Frame, WorkspaceManager):
         windowMenu.add_command(label="Plot Orientation", command=lambda: self.view_plot('orientation'))
         windowMenu.add_separator()
         windowMenu.add_command(label="Beam Stability", command=lambda: self.view_plot('beam stability'))
-        menubar.add_cascade(label="Windows", menu=windowMenu)
+        self.menubar.add_cascade(label="Windows", menu=windowMenu)
         
-        imageMenu = tk.Menu(menubar, tearoff=1)       
+        imageMenu = tk.Menu(self.menubar, tearoff=1)       
         imageMenu.add_command(label="Take Screenshot", command=self.save_screenshot)
         imageMenu.add_command(label="Take Video /10 s", command=lambda: self.save_video(10))
         imageMenu.add_separator()
@@ -300,13 +293,15 @@ class Controller(tk.Frame, WorkspaceManager):
         submenu.add_command(label='fivethirtyeight', command=lambda: self.change_style('fivethirtyeight'))
         imageMenu.add_cascade(label='Change Plot Style', menu=submenu, underline=0)
         
-        menubar.add_cascade(label="Image", underline=0, menu=imageMenu)        
+        self.menubar.add_cascade(label="Image", underline=0, menu=imageMenu)        
         
-        helpmenu = tk.Menu(menubar, tearoff=1)
+        helpmenu = tk.Menu(self.menubar, tearoff=1)
         helpmenu.add_command(label="About", command=lambda: self.info_window("About", "BiLBO (Birmingham Laser Beam Observer) is a Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
-        menubar.add_cascade(label="Help", menu=helpmenu)
+        helpmenu.add_command(label="Documentation", command= lambda: self.open_link('https://github.com/Spiruel/beamprofiler/blob/master/README.md'))
+        helpmenu.add_command(label="Source Code", command= lambda: self.open_link('https://github.com/Spiruel/beamprofiler'))
+        self.menubar.add_cascade(label="Help", menu=helpmenu)
 
-        self.parent.config(menu=menubar)
+        self.parent.config(menu=self.menubar)
         ###################################################################NAVBAR
           
         # **** Tool Bar ****
@@ -435,7 +430,7 @@ class Controller(tk.Frame, WorkspaceManager):
         if self.angle != 0: #apply rotation
             cv2image = self.rotate_image(cv2image)
         
-        self.analysis_frame = cv2.cvtColor(analysis_frame,cv2.COLOR_BGR2GRAY) # convert to greyscale
+        self.analysis_frame = cv2.cvtColor(self.rotate_image(analysis_frame),cv2.COLOR_BGR2GRAY) # convert to greyscale
 
         if self.active:
 
@@ -480,7 +475,12 @@ class Controller(tk.Frame, WorkspaceManager):
             self.peak_hist_x, self.peak_hist_y = np.append(self.peak_hist_x, peak_cross[0]), np.append(self.peak_hist_y, peak_cross[1])
             self.ellipse_hist_angle = np.append(self.ellipse_hist_angle, self.ellipse_angle)
             self.running_time = np.append(self.running_time, time.time()-self.pause_delay) #making sure to account for time that pause has been active
-
+            self.width_hist = np.append(self.width_hist, self.beam_width)
+            self.ma_hist = np.append(self.ma_hist, self.ma)
+            self.MA_hist = np.append(self.MA_hist, self.MA)
+            self.ellipticity_hist = np.append(self.ellipticity_hist, self.ellipticity)
+            self.eccentricity_hist = np.append(self.eccentricity_hist, self.eccentricity)
+            
             if self.info_frame != None:
                 self.pass_fail_testing()
             
@@ -542,6 +542,8 @@ class Controller(tk.Frame, WorkspaceManager):
             self.last_pause = time.time()
             self.active = False
             self.pb.deselect()
+            
+        self.toggle_navbar()
         
     def rotate_image(self, image):
         '''Rotates the given array by the rotation angle, returning as an array.'''
@@ -571,17 +573,19 @@ class Controller(tk.Frame, WorkspaceManager):
             l.grab_set()  
        
     def save_screenshot(self):
-        cv2.imwrite('output.png', self.img)
-        self.log('Written output.png to disk.')
+        filename = 'outputpicture_%s.png' % (str(time.strftime("%d-%m_%H%M")))
+        cv2.imwrite(filename, self.img)
+        self.log('Written ' + filename + ' to disk.')
         
     def save_video(self, wait):
+        filename = 'outputvideo_%s.avi' % (str(time.strftime("%d-%m_%H%M")))
         self.log('Writing video to disk, of length ' + str(wait) + ' seconds.')
-        video  = cv2.VideoWriter('output.avi', -1, 25, (self.width, self.height));
+        video  = cv2.VideoWriter(filename, -1, 25, (self.width, self.height));
         start = time.time()
         while time.time() - start < wait:
            f,img = self.cap.read()
            video.write(img)
-        self.log('Video capture completed successfully.')
+        self.log('Video capture completed successfully. Written ' + filename + ' to disk.')
         video.release()  
             
     def save_csv(self):
@@ -589,8 +593,12 @@ class Controller(tk.Frame, WorkspaceManager):
         f = tkFileDialog.asksaveasfile(mode='w', initialfile='output.csv', defaultextension=".csv")
         if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
-        output = np.column_stack((self.running_time.flatten(),self.centroid_hist_x.flatten(),self.centroid_hist_y.flatten(),self.peak_hist_x.flatten(),self.peak_hist_y.flatten()))
-        np.savetxt('output.csv',output,delimiter=',',header='BiLBO Data Export. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y')
+            
+        output = np.column_stack((self.running_time.flatten(),(self.centroid_hist_x*self.pixel_scale).flatten(),(self.centroid_hist_y*self.pixel_scale).flatten(),
+        (self.peak_hist_x*self.pixel_scale).flatten(),(self.peak_hist_y*self.pixel_scale).flatten(), self.ellipse_hist_angle.flatten(),
+        (self.ma_hist*self.pixel_scale).flatten(), (self.MA_hist*self.pixel_scale).flatten(), self.ellipticity_hist.flatten(), self.eccentricity_hist.flatten()))
+        
+        np.savetxt('output.csv',output,delimiter=',',header='BiLBO Data Export. Units same as given in calc results. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y, ellipse angle, minor axis, major axis, ellipticity, eccentricity')
     
     def calc_results(self):
         '''Opens calculation results window'''
@@ -603,18 +611,21 @@ class Controller(tk.Frame, WorkspaceManager):
             
     def view_plot(self, graph):
         '''Opens plot view'''
-	print("opening of: " + graph)
-        if graph in [i.fig_type for i in self.plot_frames]:
-	    for plot in self.plot_frames:
-               if plot.fig_type == graph:
-                   plot.window.lift()
-                   plot.window.deiconify()
-		   self.plot_frames.remove(plot)
-		   print("removing old of: " + plot.fig_type)
-        self.plot_frames.append(self.view('plot', graphtype=graph))
-	print("end: " + graph)
+        if graph == '2d surface':
+            self.surface_plot()
+        else:
+            print("opening of: " + graph)
+            if graph in [i.fig_type for i in self.plot_frames]:
+                for plot in self.plot_frames:
+                    if plot.fig_type == graph:
+                        plot.window.lift()
+                        plot.window.deiconify()
+                        # self.plot_frames.remove(plot)
+                        # print("removing old of: " + plot.fig_type)
+            else:
+                self.plot_frames.append(self.view('plot', graphtype=graph))
+            print("end: " + graph)
             
-        
     def change_config(self):
         '''Opens configuration window'''
         if self.config_frame != None:
@@ -752,7 +763,12 @@ class Controller(tk.Frame, WorkspaceManager):
                             self.raw_passfail[index] = 'False' #reset value
                             self.info_frame.refresh_frame()
             if index == 5:
-                print('check total power')
+                if self.power != np.nan and self.beam_diameter is not None:
+                    powdens = float("{:.2E}".format((255000/square(self.parent.beam_diameter))*self.power))
+                    if powdens <= float(x_lower) or powdens >= float(x_upper):
+                            self.alert("Pass/Fail Test", "Power Density has failed to meet criteria!")
+                            self.raw_passfail[index] = 'False' #reset value
+                            self.info_frame.refresh_frame()
                                
         for index in np.where(np.array(self.ellipse_passfail) == 'True')[0]:
             x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.info_frame.ellipse_xbounds[index]]
@@ -848,6 +864,19 @@ class Controller(tk.Frame, WorkspaceManager):
                     else:
                         self.log('Could not find workspace details.')
                         
+    def toggle_navbar(self):
+        menus = ['File', 'Control', 'Windows', 'Image', 'Help']
+        if self.active:
+            for menu in menus:
+                self.menubar.entryconfig(menu, state="disabled")
+        else:
+            for menu in menus:
+                self.menubar.entryconfig(menu, state="normal")
+                
+    def open_link(self, link):
+        import webbrowser
+        webbrowser.open_new(link)
+             
     def TrueFalse(self, x):
         if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan' and x is not False:
             if self.active:
@@ -856,6 +885,46 @@ class Controller(tk.Frame, WorkspaceManager):
                 return 'INACTIVE'
         else:
             return 'INACTIVE'
+            
+    def surface_plot(self):
+        from mayavi import mlab
+        size = 200
+        if self.parent.peak_cross is not None:
+            x,y = self.parent.peak_cross
+        else:
+            x,y = self.parent.width/2, self.parent.height/2
+            
+        img = self.parent.analysis_frame[int(y-size/2):int(y+size/2), int(x-size/2):int(x+size/2)]
+
+        height, width = img.shape
+
+        # A mesh grid
+        xs = np.linspace(0,width,width)
+        ys = np.linspace(0,height,height)
+        x,y = np.meshgrid(xs, ys)
+
+        z = img
+
+        obj = mlab.mesh(x,y,z, color= (1, 1, 1))
+
+        max_framerate = 10
+
+        ms = obj.mlab_source
+        @mlab.animate(delay=100)
+        def anim():
+            while 1:
+                retval, im = camera.read()
+
+                img = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+                a,b = 300,212
+                size = 200
+                img = img[b-size/2:b+size/2, a-size/2:a+size/2]
+                
+                ms.set(x=x, y=y, z=img)
+                yield
+                
+        anim()
+        mlab.show()
     
 app = Application()
 app.load()

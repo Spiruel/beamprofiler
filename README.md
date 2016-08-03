@@ -6,7 +6,7 @@ BiLBO interfaces with a webcam using OpenCV (Open Source Computer Vision Library
 Python's de-facto standard GUI (Graphical User Interface) package.
 In the interests of making the code easy to install and make use of, libraries that are typical to most standard Python distributions 
 were favoured for use. This includes the powerful Numpy and Scipy scientific libraries, as well as the plotting library Matplotlib. 
-If you do not yet have a Python distribution installed, it is reccommended that you use the Anaconda distribution.
+If you do not yet have a Python distribution installed, it is reccommended that you use the [Anaconda distribution](https://www.continuum.io/downloads).
 
 The purpose of this project is to produce an application that is both open-source, cross-platform, and designed for inexpensive hardware.
 Professional laser beam profilers tend to be expensive, using patented algorithms with concealed methods.
@@ -26,7 +26,7 @@ First, you can to try run this command in your terminal,
 python -c "import urllib2;exec urllib2.urlopen('https://raw.githubusercontent.com/Spiruel/beamprofiler/master/installation.py').read()" 
 ```
 
-to install everything (except OpenCV) at once in your working directory. [How to install OpenCV.](#opencv-installation)
+to install everything (except OpenCV) at once and download necessary files into your working directory.
 
 ####Install from source distribution
 Alternatively you can download a copy of this repository, and run:
@@ -46,7 +46,7 @@ You will now need to install the OpenCV library separately. [Source download her
 conda install opencv
 ```
 ####Executables
-Download sources for Windows™ or Macintosh™ platforms are available here:
+Download for Windows™ platforms available here:
 
 ###Modifying the webcam
 
@@ -73,35 +73,20 @@ There are a considerations that should be taken into account before using the ap
 
   * Monochrome chips are recommended - the Bayer colour filter
     pattern will skew results.
+    
+###How to use the programme
 
-## Features
+When the programme loads, the main control bar will load alongside any configured workspace arrangement. It is reccommended that you familiarise yourself
+with the controls before activating the profiler. The main control bar contains almost all the controls, with the other windows predominately for display
+purposes.
 
-![logo](https://cloud.githubusercontent.com/assets/3259632/17253726/d2c25ee8-55a9-11e6-8e87-9d5825df4899.png)
+####Main navigation bar
+Using the five navigation menus located at the top of the control bar, you can export data, calibrate background subtraction, change the camera view and more.
+For a full list of features please look at [features](#features).
 
-* **Calculations**            
- Beam Width (4-Sigma), Beam Diameter, Peak Pixel value, Peak Position, Centroid Position, Power Density, Measured Ellipse Axes, Ellipticity, Eccentricity, Orientation
- (Exportable)
-* **2D Profile**               
- Beam Peak/Centroid/Ellipse overlays
-* **3D Profile**              
- Free Rotatable 3D Model using MayaVi
-* **X-Y Cross Profiles**          
- Measured Data, Gaussian Fit (Exportable)
-* **Plot Positions over Time** 
- Peak and Centroid x and y positions (Exportable)
-* **Peak Density over Time**           
- Measured Data (Storable)
-* **Pass/Fail Testing**        
- Selectable Parameters with alerts available when values fall out of the specified range
-* ***Beam Stability**           
- 2D data of Centroid and Peak Positions over Time
-* **And**
-  * Background frame calibration
-  * Save Screenshots and Videos to disk
-  * Switch between multiple cameras as the application is running
-  * Rotate the input frame instead of rotating the laser
-  * Save settings to a simple config file, allowing specific configurations depending on the choice of webcam and laser
-  * Fully configurable, with custom toolbar configuration and window layout workspaces all available to be saved to a file and loaded on request
+####Main toolbar
+(Click to enlarge image.)
+![Main toolbar information](https://cloud.githubusercontent.com/assets/3259632/17363802/8b730d5c-5974-11e6-861a-0fceac70c36d.png)
 
 ## How to use
 
@@ -113,11 +98,37 @@ Please follow these steps in order to make full use of BiLBO:
 4. Turn off the laser and perform a background subtraction calibration. Monitor the pixel value data in both the calculation results window and webcam view to ascertain its success.
 5. Activate the profiler with the space hotkey or the checkbox, and you're good to go!
 
-Upon loading the application, you will be presented with a camera feed and a default workspace. This can be configured as desired.
+Upon loading the application, you will be presented with a camera feed, and if a valid configuration file exists, a workspace arrangement as well. This can be configured as desired.
 The space hotkey will toggle the profiler's state, where upon activated it will immediately begin calculations on what the computer receives from the webcam.
-Changes to exposure time, region of interests and so on may require further configuration before you can use the profiler effectively. These can be adjusted in the control menu. 
+Changes to exposure time, regions of interest and so on may require further configuration before you can use the profiler effectively. These can be adjusted in the control menu. 
 
 All the results and plots are directly accessed using the window menu. All of this available data can be exported at any time to a .csv in the file menu.
+
+
+## Features
+
+* **Calculations**            
+ Beam Width (4-Sigma), Beam Diameter, Peak Pixel value, Peak Position, Centroid Position, Power Density, Measured Ellipse Axes, Ellipticity, Eccentricity, Orientation
+ (Exportable)
+* **2D Profile**               
+ Beam Peak/Centroid/Ellipse overlays
+* **3D Profile**              
+ Free Rotatable 3D Model using MayaVi
+* **X-Y Cross Profiles**          
+ Measured Data, Gaussian Fit
+* **Plot Positions over Time**           
+ Peak and Centroid x and y positions (Exportable)
+* **Pass/Fail Testing**        
+ Selectable Parameters with alerts available when values fall out of the specified range
+* **Beam Stability**           
+ 2D data of Centroid and Peak Positions over Time
+* **And**
+  * Background frame calibration
+  * Save Screenshots and Videos to disk
+  * Switch between multiple cameras as the application is running
+  * Rotate the input frame instead of rotating the laser
+  * Save settings to a simple config file, allowing specific configurations depending on the choice of webcam and laser
+  * Fully configurable, with custom toolbar configuration and window layout workspaces all available to be saved to a file and loaded on request
 
 ## Authors
 

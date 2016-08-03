@@ -4,7 +4,9 @@
 *.csv
 *.bat
 *.spec
+*.exe
 
+info.png
 test.py
 setup.py
 

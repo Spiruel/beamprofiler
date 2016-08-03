@@ -1,6 +1,7 @@
 matplotlib==1.5.1
+mayavi==4.4.4
 numpy==1.11.1
+pip==8.1.2
 PyAudio==0.2.9
-setuptools==19.2
 Pillow==3.3.0
-scipy==0.18.0rc2
+scipy==0.18.0
