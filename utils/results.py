@@ -21,7 +21,7 @@ import math
 from scipy.optimize import curve_fit
 from scipy.ndimage.interpolation import zoom
 
-import interface, output
+from . import interface, output
 
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 import matplotlib.pyplot as plt
@@ -132,6 +132,8 @@ class WorkspaceManager(tk.Frame):
                 else:
                     self.log('Error couldnt find window to be opened! '+ windowtype)
                 self.instances.append(t)
+            self.show_all()
+            self.log('Loaded workspace!')
         
     def create_window(self, windowtype):
         if len(self.vacancies) >= 1:
@@ -168,6 +170,7 @@ class WorkspaceManager(tk.Frame):
     
         self.windowx, self.windowy = self.w, 0
         self.vacancies = []
+        # self.log('Closed all windows.')
         
     def view(self, option, graphtype=None):
         if option == 'webcam':
@@ -221,7 +224,7 @@ class PlotView(NewWindow, tk.Frame):
         NewWindow.__init__(self, parent, x, y, geom)
         tk.Frame.__init__(self, parent)
         
-        self.window.minsize(640,360)
+        self.window.minsize(int(self.parent.ws/3),int(self.parent.hs/3))
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.windowtype = 'plot'
         self.fig_type = graphtype
@@ -276,7 +279,7 @@ class PlotView(NewWindow, tk.Frame):
         toolbar.update() 
         canvas._tkcanvas.pack()
             
-        self.parent.change_style(self.parent.style_sheet, set=True)
+        self.parent.change_style(self.parent.style_sheet, set=True, verbose=False)
         self.refresh_frame()
         
     def refresh_frame(self):
@@ -289,7 +292,10 @@ class PlotView(NewWindow, tk.Frame):
         if self.fig_type == 'x cross profile':
             self.ax.set_xlabel('$position$ $/\mu m$'); self.ax.set_ylabel('$pixel$ $value$')
             if self.parent.peak_cross != None and self.parent.peak_cross != (np.nan, np.nan):
-                size = 40 #self.beam_width[0]
+                if str(self.parent.MA) != 'nan':
+                    size = 2*int(self.parent.MA)+10
+                else:
+                    size = 50
                 xs = np.arange(self.parent.width)[int(self.parent.peak_cross[0]-size):int(self.parent.peak_cross[0]+size)]
                 ys = grayscale[int(self.parent.peak_cross[1]),:]
                 self.ax.plot(xs, ys[int(self.parent.peak_cross[0]-size):int(self.parent.peak_cross[0]+size)],'k-')
@@ -306,7 +312,10 @@ class PlotView(NewWindow, tk.Frame):
         elif self.fig_type == 'y cross profile':
             self.ax.set_xlabel('$position$ $/\mu m$'); self.ax.set_ylabel('$pixel$ $value$')
             if self.parent.peak_cross != None and self.parent.peak_cross != (np.nan, np.nan):
-                size = 40 #self.beam_width[1]
+                if str(self.parent.MA) != 'nan':
+                    size = 2*int(self.parent.MA)+10
+                else:
+                    size = 50
                 xs = np.arange(self.parent.height)[int(self.parent.peak_cross[1]-size):int(self.parent.peak_cross[1]+size)]
                 ys = grayscale[:,self.parent.peak_cross[0]]
                 self.ax.plot(xs, ys[int(self.parent.peak_cross[1]-size):int(self.parent.peak_cross[1]+size)],'k-')
@@ -339,13 +348,6 @@ class PlotView(NewWindow, tk.Frame):
                 else:
                     size = 50
                         
-                self.ax.set_xlim(0, size)
-                self.ax.set_ylim(size, 0)
-            
-                if str(self.parent.MA) != 'nan':
-                    size = 2*int(self.parent.MA)+10
-                else:
-                    size = 50
                 x, y = [int(i) for i in self.parent.peak_cross]
                 img = grayscale[y-size/2:y+size/2, x-size/2:x+size/2]
                 # # # # # params = self.parent.analyse.fit_gaussian(with_bounds=False)
@@ -394,11 +396,20 @@ class PlotView(NewWindow, tk.Frame):
                     self.ax.plot([MA_xtop - (x_displace), MA_xbot - (x_displace)], [MA_ytop - (y_displace), MA_ybot - (y_displace)], 'w-', lw=2)
                     self.ax.plot([ma_xtop - (x_displace), ma_xbot - (x_displace)], [ma_ybot - (y_displace), ma_ytop - (y_displace)], 'w:', lw=2)
                     
+                self.ax.set_xlim(0, size)
+                self.ax.set_ylim(size, 0)
+                
                 self.convert_axes(self.ax, x=True, y=True)
+                
+                xlabels = np.array(self.ax.get_xticks().tolist())
+                self.ax.set_xticklabels([int(i)+((self.parent.peak_cross[0]-(size/2))*self.parent.pixel_scale) for i in xlabels])
+                ylabels = np.array(self.ax.get_yticks().tolist())
+                self.ax.set_yticklabels([int(i)+((self.parent.peak_cross[1]-(size/2))*self.parent.pixel_scale) for i in ylabels])
         elif self.fig_type == 'beam stability':
             self.ax.set_xlabel('$position$ $/\mu m$'); self.ax.set_ylabel('$position$ $/\mu m$')
             if self.parent.graphs['centroid']: self.ax.plot(self.parent.centroid_hist_x, self.parent.centroid_hist_y, 'r-', label='centroid')
             if self.parent.graphs['peak cross']: self.ax.plot(self.parent.peak_hist_x, self.parent.peak_hist_y, 'b-', label='peak cross')
+            self.ax.set_xlim(0, self.parent.width); self.ax.set_ylim(self.parent.height, 0)
             self.convert_axes(self.ax, x=True, y=True)
             self.ax.plot([0,0],'w.',label=''); self.ax.legend(frameon=False)
         elif self.fig_type == 'positions':
@@ -467,7 +478,7 @@ class WebcamView(NewWindow):
         self.lmain2.pack(expand=1, fill=tk.BOTH)
         
         self.window.wm_title("Webcam View")
-        self.window.minsize(640,360)
+        self.window.minsize(int(self.parent.ws/3.),int(self.parent.hs/3.))
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.windowtype = 'webcam'
         
@@ -494,7 +505,7 @@ class SystemLog(NewWindow):
         NewWindow.__init__(self, parent, x, y, geom)
 
         self.window.wm_title("System Log")
-        self.window.minsize(200,350)
+        self.window.minsize(int(self.parent.ws/9.6),int(self.parent.hs/3.))
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.windowtype = 'logs'
         
@@ -532,7 +543,7 @@ class InfoView(NewWindow):
         NewWindow.__init__(self, parent, x, y, geom)
 
         self.window.wm_title("Calculation Results")
-        self.window.minsize(800,300)
+        self.window.minsize(int(self.parent.ws/2),int(self.parent.hs/3.5))
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.windowtype = 'info'
                 

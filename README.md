@@ -1,4 +1,5 @@
 # BiLBO (Birmingham Laser Beam Observer)
+![Main toolbar information](https://cloud.githubusercontent.com/assets/3259632/17398154/426428a2-5a33-11e6-897e-15d9760fd5c2.png)
 
 BiLBO is a laser beam analysis application written in Python and intended for use with cheap webcams.
 
@@ -20,10 +21,10 @@ Because of this, it is important that this analysis software is made freely avai
 ####Quick Start
 These instructions will get you a copy of the project up and running on your local machine.
 
-First, you can to try run this command in your terminal,
+First, you can to try to run this command in your terminal,
 
 ```
-python -c "import urllib2;exec urllib2.urlopen('https://raw.githubusercontent.com/Spiruel/beamprofiler/master/installation.py').read()" 
+python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.com/Spiruel/beamprofiler/master/installation.py').read())" 
 ```
 
 to install everything (except OpenCV) at once and download necessary files into your working directory.
@@ -38,7 +39,8 @@ pip install -r requirements.txt
 in order to install the required dependencies (except OpenCV) for BiLBO to work. 
 
 ####OpenCV Installation
-You will now need to install the OpenCV library separately. [Source download here](http://sourceforge.net/projects/opencvlibrary/files/opencv-win/).
+You will now need to install the OpenCV library separately. [Source download here](http://sourceforge.net/projects/opencvlibrary/files/opencv-win/). 
+[Alternatively, Unofficial Windows Binaries for pip installation of OpenCV .whl file here.](http://www.lfd.uci.edu/~gohlke/pythonlibs/).
 
 **Note**: If you're on the Anaconda distribution of Python you can try to easily install OpenCV using,
 
@@ -56,10 +58,10 @@ There are a considerations that should be taken into account before using the ap
 
   * Glass windows will need to be completely removed, including the glass cover that is
     typically glued to the front of the CCD chip. You can remove this by applying heat 
-    the the epoxy with a heat gun. It is to important to remember that this will make the chip
+    to the epoxy with a heat gun. It is to important to remember that removing with cover this will make the chip
     very vulnerable to dust and it will age much faster. But it it
-    necessary to prevent interferences fringes negatively impacting upon the quality of the image.
-    Remember that even 1% stray light due to reflections from glass-air
+    absolutely necessary to prevent interferences fringes negatively impacting upon the quality of the image.
+    Even 1% stray light due to reflections from glass-air
     interfaces leads to 40% peak to peak variations in intensity.
 
   * With front-illuminated silicon CCD chips, wavelengths longer than
@@ -74,7 +76,9 @@ There are a considerations that should be taken into account before using the ap
   * Monochrome chips are recommended - the Bayer colour filter
     pattern will skew results.
     
-###How to use the programme
+###How to begin
+(Click to enlarge image.)
+![](https://cloud.githubusercontent.com/assets/3259632/17398152/3f943c52-5a33-11e6-95d6-2247db34b619.png)
 
 When the programme loads, the main control bar will load alongside any configured workspace arrangement. It is reccommended that you familiarise yourself
 with the controls before activating the profiler. The main control bar contains almost all the controls, with the other windows predominately for display
@@ -104,11 +108,11 @@ Changes to exposure time, regions of interest and so on may require further conf
 
 All the results and plots are directly accessed using the window menu. All of this available data can be exported at any time to a .csv in the file menu.
 
-
 ## Features
+![](https://cloud.githubusercontent.com/assets/3259632/17398149/3d49a3ba-5a33-11e6-9210-9cd9a8360231.png)
 
 * **Calculations**            
- Beam Width (4-Sigma), Beam Diameter, Peak Pixel value, Peak Position, Centroid Position, Power Density, Measured Ellipse Axes, Ellipticity, Eccentricity, Orientation
+ Beam Width (1/e^2), Beam Diameter, Peak Pixel value, Peak Position, Centroid Position, Power Density, Measured Ellipse Axes, Ellipticity, Eccentricity, Orientation
  (Exportable)
 * **2D Profile**               
  Beam Peak/Centroid/Ellipse overlays
@@ -128,7 +132,25 @@ All the results and plots are directly accessed using the window menu. All of th
   * Switch between multiple cameras as the application is running
   * Rotate the input frame instead of rotating the laser
   * Save settings to a simple config file, allowing specific configurations depending on the choice of webcam and laser
+  * Active ellipse drawing on webcam real-time view, with a large cross marking any active centroid and the smaller cross marking any active peak of the identified laser beam.
   * Fully configurable, with custom toolbar configuration and window layout workspaces all available to be saved to a file and loaded on request
+
+##FAQ
+
+###When I activate the profiler the programme is slow to respond, with a low refresh rate. What steps should I take to fix this?
+BiLBO is designed to work on a range of computer, but some will perform better than others. If you find that your computer is not powerful enough to run
+the application well, try these steps:
+  1. Reduce the resolution of the webcam view in the config.ini file. Note: You will need to adjust the pixel scale parameter in accordance with this.
+Measurement accuracy will be affected by this.  
+  2. Configure your workspace to reduce the number of active plots. Don't worry: Crucial data is still collected behind the scenes and can be exported at any point.
+  3. Reduce the plot refresh rate in the config to reduce the rate of canvasses being actively refreshed.
+  4. Close the webcam view window if it is active.
+
+###I want to add new features to BiLBO and offer improvements.
+Feel free to offer pull requests etc to this repository!
+
+###I have an issue which I am struggling to diagnose. It is probably a bug.
+Please create an issue in the repository issues page and it will get investigated!
 
 ## Authors
 
@@ -142,3 +164,4 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 * Thank you to my supervisor Dr Jon Goldwin.
 * Thanks to the [Ogden Trust](www.ogdentrust.com) for allowing this internship to be possible.
+* Thanks to Ben Bancroft for helping me with code problems...

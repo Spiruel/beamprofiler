@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: latin-1 -*-
-          
+
 from utils.results import WorkspaceManager
 from utils import analysis, output, interface
 
@@ -37,17 +37,18 @@ def clear_capture(capture):
     cv2.destroyAllWindows()
 
 def count_cameras():
+    '''Counts up the total number of connected webcams'''
     n = 0
     for i in range(7):
         try:
-	    cap = cv2.VideoCapture(i)
-	    ret, frame = cap.read()
-	    cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-	    clear_capture(cap)
-	    n += 1
+            cap = cv2.VideoCapture(i)
+            ret, frame = cap.read()
+            cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            clear_capture(cap)
+            n += 1
         except:
-	    clear_capture(cap)
-	    break
+            clear_capture(cap)
+            break
     return n
 
 def on_closing(controller):
@@ -117,8 +118,8 @@ class Application:
         control.load_camera_menu(self.camera_count)
         control.load_workspace()
         w, h = control.parent.winfo_screenwidth(), control.parent.winfo_screenwidth()
-        control.parent.minsize(w,95)
-        control.parent.geometry('%dx%d+%d+%d' % (2*w, 95, -6, 2)) #geometry of the main window
+        control.parent.minsize(w,int(h/16.1684))
+        control.parent.geometry('%dx%d+%d+%d' % (2*w, int(h/16.1684), -int(w/320.), int(h/540))) #geometry of the main window
         
         print("Loaded application. Closing splashscreen")
         splash_screen.close()
@@ -148,6 +149,8 @@ class Controller(tk.Frame, WorkspaceManager):
         self.pause_delay = 0 #time delay for when profiler is inactive. cumulatively adds.
         self.last_pause = time.time() #last time profiler was inactive
 
+        self.elapsed_time = np.nan
+        self.last_tick = np.nan
         self.plot_time = self.last_pause  #various parameters ters used throughout the profiler are initialised here
         self.angle = 0.0 #setting initial angles, region of interest, exposure time etc
         self.roi = 1
@@ -202,7 +205,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.basic_workspace = [(0.4166666666666667, 0.4166666666666667, 0.4127604166666667, 0.7314814814814815, 'plot', 'x cross profile'), (0.4166666666666667, 0.4166666666666667, 0.8307291666666666, 0.7314814814814815, 'plot', 'y cross profile'), (0.4166666666666667, 0.41898148148148145, -0.004557291666666667, 0.7280092592592593, 'webcam'), (1.2454427083333333, 0.5, -0.0032552083333333335, 0.1863425925925926, 'plot', 'positions')]
         self.workspace = []
         self.width, self.height  = 1,1
-        # self.stream = output.SoundFeedback(self)
+        self.stream = output.SoundFeedback(self)
                 
         self.analysis_frame = None
         self.analyse = analysis.Analyse(self) #creates instance for analysis routines
@@ -226,7 +229,7 @@ class Controller(tk.Frame, WorkspaceManager):
 
         # **** Status Bar ****
         self.status = tk.StringVar()
-        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
+        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle) + ' | FPS: ' + str(round(1./self.elapsed_time))
         self.status.set(status_string)
         status_label = tk.Label(self.statusbar, textvariable=self.status, width = 65, pady = 5, anchor=tk.W)
         status_label.pack(side=tk.BOTTOM, fill=tk.X)
@@ -257,6 +260,16 @@ class Controller(tk.Frame, WorkspaceManager):
         controlMenu.add_separator()
         controlMenu.add_command(label="Load Workspace", command= self.load_workspace)
         controlMenu.add_command(label="Save Workspace", command= self.save_workspace)
+        controlMenu.add_separator()
+        submenu = tk.Menu(controlMenu, tearoff=1)
+        submenu.add_command(label="Peak x", command= lambda:self.stream.start('peak x'))
+        submenu.add_command(label="Peak y", command= lambda:self.stream.start('peak y'))
+        submenu.add_command(label="Centroid x", command= lambda:self.stream.start('centroid x'))
+        submenu.add_command(label="Centroid y", command= lambda:self.stream.start('centroid y'))
+        submenu.add_command(label="Max Pixel Value", command= lambda:self.stream.start('max pixel'))
+        submenu.add_command(label="Orientation", command= lambda:self.stream.start('orientation'))
+        controlMenu.add_cascade(label='Start Sound indicator', menu=submenu, underline=0)
+        controlMenu.add_command(label="Stop Sound", command= lambda:self.stream.streamer.stop_stream())
         self.menubar.add_cascade(label="Control", menu=controlMenu)
 
         windowMenu = tk.Menu(self.menubar, tearoff=1)
@@ -317,11 +330,6 @@ class Controller(tk.Frame, WorkspaceManager):
         self.toolbar.pack(side=tk.TOP, fill=tk.X)       
         # **** End of Tool Bar ****
         
-        # b = tk.Button(labelframe, text="Start Sound", command=lambda: self.stream.streamer.start_stream())
-        # b.pack(fill=tk.BOTH)
-        # b = tk.Button(labelframe, text="Stop Sound", command=lambda: self.stream.streamer.stop_stream())
-        # b.pack(fill=tk.BOTH)
-        
         newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
         for button in newbuttons:
             self.update_toolbar(button)
@@ -331,14 +339,15 @@ class Controller(tk.Frame, WorkspaceManager):
             self.camera_menu.add_command(label=str(i), command= lambda i=i: self.change_cam(i))
         
     def refresh_plot(self):
+        '''Refresh plot windows if they are active'''
         if len(self.plot_frames) > 0:
             for plot in self.plot_frames:
                 plot.refresh_frame()
             
-    def change_style(self, option, set=False):
+    def change_style(self, option, set=False, verbose=True):
         '''Changes the style sheet used in the plot'''
         if self.style_sheet != option or set==True:
-            self.log('Changed style sheet ' + option)
+            if verbose: self.log('Changed style sheet ' + option)
             self.style_sheet = option
             plt.style.use(option)
             plt.cla()
@@ -370,7 +379,8 @@ class Controller(tk.Frame, WorkspaceManager):
 
     def init_camera(self):
         '''Initialises the camera with a set resolution.'''
-        self.width, self.height = 640*2, 360*2
+        if self.width == 1 and self.height == 1:
+            self.width, self.height = 640*2, 360*2
         self.cap = cv2.VideoCapture(self.camera_index)
         if not self.cap:
             raise Exception("Camera not accessible")
@@ -432,6 +442,9 @@ class Controller(tk.Frame, WorkspaceManager):
         
         self.analysis_frame = cv2.cvtColor(self.rotate_image(analysis_frame),cv2.COLOR_BGR2GRAY) # convert to greyscale
 
+        self.elapsed_time = time.time() - self.last_tick
+        self.last_tick = time.time()
+        
         if self.active:
 
             peak_cross = self.analyse.find_peak()
@@ -490,7 +503,7 @@ class Controller(tk.Frame, WorkspaceManager):
             else:
                 self.beam_diameter = None
                 
-        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle))
+        status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle) + ' | FPS: ' + str(round(1./self.elapsed_time))
         self.status.set(status_string)
                 
         self.imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
@@ -561,6 +574,9 @@ class Controller(tk.Frame, WorkspaceManager):
         return image_rotated_cropped
   
     def close_window(self):
+        '''Close GUI routine. Stops threaded sound process to avoid problems in shutdown.'''
+        self.stream.streamer.stop_stream()
+        self.stream.streamer.close()
         on_closing(self)
         
     def info_window(self, title, info, modal=False):
@@ -597,8 +613,8 @@ class Controller(tk.Frame, WorkspaceManager):
         output = np.column_stack((self.running_time.flatten(),(self.centroid_hist_x*self.pixel_scale).flatten(),(self.centroid_hist_y*self.pixel_scale).flatten(),
         (self.peak_hist_x*self.pixel_scale).flatten(),(self.peak_hist_y*self.pixel_scale).flatten(), self.ellipse_hist_angle.flatten(),
         (self.ma_hist*self.pixel_scale).flatten(), (self.MA_hist*self.pixel_scale).flatten(), self.ellipticity_hist.flatten(), self.eccentricity_hist.flatten()))
-        
         np.savetxt('output.csv',output,delimiter=',',header='BiLBO Data Export. Units same as given in calc results. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y, ellipse angle, minor axis, major axis, ellipticity, eccentricity')
+        self.log('Successfully exported data.')
     
     def calc_results(self):
         '''Opens calculation results window'''
@@ -620,8 +636,6 @@ class Controller(tk.Frame, WorkspaceManager):
                     if plot.fig_type == graph:
                         plot.window.lift()
                         plot.window.deiconify()
-                        # self.plot_frames.remove(plot)
-                        # print("removing old of: " + plot.fig_type)
             else:
                 self.plot_frames.append(self.view('plot', graphtype=graph))
             print("end: " + graph)
@@ -693,7 +707,9 @@ class Controller(tk.Frame, WorkspaceManager):
                 button[0].destroy()
                 self.toolbarbuttons.remove(button)
         newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
-        for button in newbuttons: #need for loop or commands get overwritten..?
+        if len(newbuttons) > 0 and self.toolbarconfig_frame is not None:
+            self.log('Updating toolbar configuration')
+        for button in newbuttons:
             self.update_toolbar(button) #now add buttons that have been requested
                 
     def update_toolbar(self, button):
@@ -803,6 +819,7 @@ class Controller(tk.Frame, WorkspaceManager):
         # tkMessageBox.showerror(title, text)
         
     def log(self, text):
+        '''Log message to system log and prints'''
         print(text)
         timestamp = time.strftime("%H:%M:%S", time.localtime())
         self.logs.append(timestamp + ' ' + text)
@@ -810,6 +827,7 @@ class Controller(tk.Frame, WorkspaceManager):
             self.systemlog_frame.callback() #refresh log window with new info
         
     def toggle_graph(self, option):
+        '''Graph customisation functionality'''
         if self.graphs[option]:
             self.graphs[option] = False
         elif not self.graphs[option]:
@@ -821,11 +839,14 @@ class Controller(tk.Frame, WorkspaceManager):
     def read_config(self):
         '''Reads config file on startup and sets chosen configuration'''
         config = ConfigParser.ConfigParser()
+        self.log('Reading config.ini...')
         if config.read("config.ini") != []:
             if config.has_option('WebcamSpecifications', 'pixel_scale'):
                 self.pixel_scale = float(config.get('WebcamSpecifications', 'pixel_scale'))
             if config.has_option('WebcamSpecifications', 'base_exp'):
                 self.exp = float(config.get('WebcamSpecifications', 'base_exp')) #then set exp
+            if config.has_option('WebcamSpecifications', 'resolution'):
+                self.width, self.height = [float(i) for i in config.get('WebcamSpecifications', 'resolution').replace(', ',',').split(',')]
                 
             if config.has_option('LaserSpecifications', 'power'):
                 power = (config.get('LaserSpecifications', 'power'))
@@ -865,6 +886,7 @@ class Controller(tk.Frame, WorkspaceManager):
                         self.log('Could not find workspace details.')
                         
     def toggle_navbar(self):
+        '''Enable/Disable the top navbar depending on profiler state.'''
         menus = ['File', 'Control', 'Windows', 'Image', 'Help']
         if self.active:
             for menu in menus:
@@ -874,6 +896,7 @@ class Controller(tk.Frame, WorkspaceManager):
                 self.menubar.entryconfig(menu, state="normal")
                 
     def open_link(self, link):
+        '''Access hyperlink'''
         import webbrowser
         webbrowser.open_new(link)
              

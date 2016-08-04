@@ -10,7 +10,7 @@ class SoundFeedback():
         self.master = master
         self.CHUNK = 4096
         self.RATE = 44100
-
+        self.indicator = None
         self.streamer = pyaudio.PyAudio().open(format = pyaudio.paFloat32,
                 channels = 2,
                 rate = self.RATE,
@@ -24,14 +24,45 @@ class SoundFeedback():
         return np.sin(this_chunk * factor)*  0.025
 
     def callback(self, in_data, frame_count, time_info, status):
-        if self.master.centroid is None:
-            c = 0
-        else:
-            c = self.master.centroid[0]
-
-        chunk = self.sine(time.time(), (c/self.master.width)*4400)
+        c, max = 0, 1
+        if self.indicator is not None:
+            if self.indicator[:4] == 'peak':
+                if self.master.peak_cross is None:
+                    c = 0
+                else:
+                    if self.indicator[-1] == 'x':
+                        c = self.master.peak_cross[0]
+                        max = self.master.width
+                    else:
+                        c = self.master.peak_cross[1]
+                        max = self.master.height
+            elif self.indicator[:8] == 'centroid':
+                if self.master.centroid is None:
+                    c = 0
+                else:
+                    if self.indicator[-1] == 'x':
+                        c = self.master.centroid[0]
+                        max = self.master.width
+                    else:
+                        c = self.master.centroid[1]
+                        max = self.master.height
+            elif self.indicator == 'max pixel':
+                c = np.max(self.master.analysis_frame)
+                max = 255         
+            elif self.indicator == 'orientation':
+                if self.master.ellipse_angle is None:
+                    c = 0
+                else:
+                    c = self.master.ellipse_angle
+                    max = 180
+                    
+        chunk = self.sine(time.time(), (float(c)/float(max))*4400)
         data = chunk.astype(np.float32).tostring()
         return (data, pyaudio.paContinue)
+        
+    def start(self, option):
+        self.indicator = option
+        self.streamer.start_stream()
     
 def rotate_image(image, angle):
     """

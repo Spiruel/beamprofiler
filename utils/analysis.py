@@ -265,6 +265,7 @@ class Analyse(threading.Thread):
         return pts
         
     def get_beam_width(self, peak_cross):
+        '''This method is too slow and doesn't work. But it's better than 1/e2 width to use.'''
         image = self.master.analysis_frame
         height, width = image.shape[0:2]
         
@@ -277,14 +278,14 @@ class Analyse(threading.Thread):
         if cent_y >= height:
             return None
 
-        # intensity_func = lambda x,y: image[y,x]
-        # denom = integrate.dblquad(intensity_func, 0, height, lambda x: 0, lambda x: width)
-        # x_f = lambda x,y: (x-centroid[0])**2 * intensity_func(x,y)
-        # y_f = lambda x,y: (y-centroid[1])**2 * intensity_func(x,y)
-        # x_num = integrate.nquad(x_f, [[0, width],[0, height]])
-        # y_num = integrate.nquad(y_f, [[0, width],[0, height]])
-        # sig_x = np.sqrt(x_num[0]/denom[0])
-        # sig_y = np.sqrt(y_num[0]/denom[0])
+        intensity_func = lambda x,y: image[y,x]
+        denom = integrate.dblquad(intensity_func, 0, height, lambda x: 0, lambda x: width)
+        x_f = lambda x,y: (x-centroid[0])**2 * intensity_func(x,y)
+        y_f = lambda x,y: (y-centroid[1])**2 * intensity_func(x,y)
+        x_num = integrate.nquad(x_f, [[0, width],[0, height]])
+        y_num = integrate.nquad(y_f, [[0, width],[0, height]])
+        sig_x = np.sqrt(x_num[0]/denom[0])
+        sig_y = np.sqrt(y_num[0]/denom[0])
 
         return (5,5)
         # return (4*sig_x, 4*sig_y)

@@ -295,3 +295,4 @@ class Progress(tk.Frame):
         
     def reset_bg(self):
         self.parent.bg_frame = 0
+        self.parent.log('Reset background calibration')
