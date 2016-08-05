@@ -57,12 +57,12 @@ def on_closing(controller):
     controller.parent.destroy()
     clear_capture(controller.cap)
 
-class SplashScreen(Thread): 
+class SplashScreen(Thread):
     def __init__(self, parent):
         self.parent = parent
         self.window = tk.Toplevel(parent)
         self.window.overrideredirect(True)
-        self.setSplash() 
+        self.setSplash()
         self.setWindow()
         self.window.update()
 
@@ -77,13 +77,13 @@ class SplashScreen(Thread):
         self.imgSplash = ImageTk.PhotoImage(self.picture)
 
     def setWindow(self):
-        width, height = self.picture.size 
-        halfwidth = (self.parent.winfo_screenwidth()-width)//2 
+        width, height = self.picture.size
+        halfwidth = (self.parent.winfo_screenwidth()-width)//2
         halfheight = (self.parent.winfo_screenheight()-height)//2
         self.window.geometry("%ix%i+%i+%i" %(width, height, halfwidth,halfheight))
         tk.Label(self.window, image=self.imgSplash).pack()
-            
-class Application: 
+
+class Application:
     def load_application(self):
         self.camera_count = count_cameras()
 
@@ -120,13 +120,13 @@ class Application:
         w, h = control.parent.winfo_screenwidth(), control.parent.winfo_screenwidth()
         control.parent.minsize(w,int(h/16.1684))
         control.parent.geometry('%dx%d+%d+%d' % (2*w, int(h/16.1684), -int(w/320.), int(h/540))) #geometry of the main window
-        
+
         print("Loaded application. Closing splashscreen")
         splash_screen.close()
         print('Showing main window and starting application loop')
         root.deiconify()
         root.mainloop()
-        
+
 class Controller(tk.Frame, WorkspaceManager):
     def __init__(self, parent):
         '''Initialises basic variables and GUI elements.'''
@@ -134,11 +134,11 @@ class Controller(tk.Frame, WorkspaceManager):
 
         self.lmain = tk.Label(parent)
         self.lmain.pack()
-        
+
         self.profiler_state = tk.IntVar() #for profiler state
         self.active = False #whether profiler is active or just looking at webcam view
         self.logs = [] #system logs
-        
+
         self.info_frame = None
         self.config_frame = None
         self.passfail_frame = None
@@ -201,29 +201,29 @@ class Controller(tk.Frame, WorkspaceManager):
         self.tick_counter = 0
         self.plot_tick = 0.1 #refresh rate of plots in sec
         self.pixel_scale = 5.6 #default pixel scale of webcam in um
-        
+
         self.basic_workspace = [(0.4166666666666667, 0.4166666666666667, 0.4127604166666667, 0.7314814814814815, 'plot', 'x cross profile'), (0.4166666666666667, 0.4166666666666667, 0.8307291666666666, 0.7314814814814815, 'plot', 'y cross profile'), (0.4166666666666667, 0.41898148148148145, -0.004557291666666667, 0.7280092592592593, 'webcam'), (1.2454427083333333, 0.5, -0.0032552083333333335, 0.1863425925925926, 'plot', 'positions')]
         self.workspace = []
         self.width, self.height  = 1,1
-        self.stream = output.SoundFeedback(self)
-                
+        self.stream = output.SoundFeedback(self) #for sound indicator. threaded process
+
         self.analysis_frame = None
         self.analyse = analysis.Analyse(self) #creates instance for analysis routines
         self.analyse.start()
-        
+
         self.raw_passfail = ['False'] * 6
-        self.ellipse_passfail = ['False'] * 4   
-                        
+        self.ellipse_passfail = ['False'] * 4
+
         self.bg_frame = 0
         self.bg_subtract = 0
 
         frame = tk.Frame.__init__(self, parent,relief=tk.GROOVE,width=100,height=100,bd=1)
         self.parent = parent
         self.var = tk.IntVar()
-        
+
         WorkspaceManager.__init__(self, parent) #initialise workspace manager class for arrangment of windows
         self.read_config() #overwrite prev init values with new config #NO MORE INIT VALUES BEYOND THIS POINT
-        
+
         self.statusbar = tk.Frame(self.parent)
         self.progress = interface.Progress(self)
 
@@ -236,15 +236,15 @@ class Controller(tk.Frame, WorkspaceManager):
         self.statusbar.pack(side=tk.BOTTOM, fill=tk.X)
 
         self.parent.title('BiLBO')
-        
-        ###################################################################NAVBAR
+
+        ################################NAVIGATION BAR###################################NAVBAR
         self.menubar = tk.Menu(self.parent)
         fileMenu = tk.Menu(self.menubar, tearoff=1)
         fileMenu.add_command(label="Export Data", command=self.save_csv)
         fileMenu.add_separator()
         fileMenu.add_command(label="Quit", command=self.close_window)
         self.menubar.add_cascade(label="File", menu=fileMenu)
-        
+
         controlMenu = tk.Menu(self.menubar, tearoff=1)
         self.camera_menu = tk.Menu(controlMenu, tearoff=1)
         controlMenu.add_command(label="Edit Config", command=self.change_config)
@@ -287,8 +287,8 @@ class Controller(tk.Frame, WorkspaceManager):
         windowMenu.add_separator()
         windowMenu.add_command(label="Beam Stability", command=lambda: self.view_plot('beam stability'))
         self.menubar.add_cascade(label="Windows", menu=windowMenu)
-        
-        imageMenu = tk.Menu(self.menubar, tearoff=1)       
+
+        imageMenu = tk.Menu(self.menubar, tearoff=1)
         imageMenu.add_command(label="Take Screenshot", command=self.save_screenshot)
         imageMenu.add_command(label="Take Video /10 s", command=lambda: self.save_video(10))
         imageMenu.add_separator()
@@ -305,9 +305,9 @@ class Controller(tk.Frame, WorkspaceManager):
         submenu.add_command(label='ggplot', command=lambda: self.change_style('ggplot'))
         submenu.add_command(label='fivethirtyeight', command=lambda: self.change_style('fivethirtyeight'))
         imageMenu.add_cascade(label='Change Plot Style', menu=submenu, underline=0)
-        
-        self.menubar.add_cascade(label="Image", underline=0, menu=imageMenu)        
-        
+
+        self.menubar.add_cascade(label="Image", underline=0, menu=imageMenu)
+
         helpmenu = tk.Menu(self.menubar, tearoff=1)
         helpmenu.add_command(label="About", command=lambda: self.info_window("About", "BiLBO (Birmingham Laser Beam Observer) is a Laser Beam Profiler created by Samuel Bancroft \n Summer 2016 Internship Project \n Supervisor: Dr Jon Goldwin, Birmingham University", modal=True))
         helpmenu.add_command(label="Documentation", command= lambda: self.open_link('https://github.com/Spiruel/beamprofiler/blob/master/README.md'))
@@ -316,20 +316,20 @@ class Controller(tk.Frame, WorkspaceManager):
 
         self.parent.config(menu=self.menubar)
         ###################################################################NAVBAR
-          
+
         # **** Tool Bar ****
         self.toolbar = tk.Frame(self.parent)
 
         self.pb = tk.Checkbutton(self.toolbar, text="Profiler Active (<space>)", variable=self.profiler_state, command=self.profiler_active)
         self.pb.pack(side=tk.LEFT, padx=2, pady=2)
-        
+
         self.cog = tk.PhotoImage(file='images/cog.gif').subsample(2, 2)
         insertButt = tk.Button(self.toolbar, image=self.cog, width=32, height=32, text="Customise Toolbar", command=self.change_toolbar)
         insertButt.pack(side=tk.LEFT, padx=(2, 20), pady=2)
-        
-        self.toolbar.pack(side=tk.TOP, fill=tk.X)       
+
+        self.toolbar.pack(side=tk.TOP, fill=tk.X)
         # **** End of Tool Bar ****
-        
+
         newbuttons = [obj for obj in self.toolbaroptions if obj not in [i[1] for i in self.toolbarbuttons]]
         for button in newbuttons:
             self.update_toolbar(button)
@@ -337,13 +337,13 @@ class Controller(tk.Frame, WorkspaceManager):
     def load_camera_menu(self, camera_count):
         for i in range(camera_count):
             self.camera_menu.add_command(label=str(i), command= lambda i=i: self.change_cam(i))
-        
+
     def refresh_plot(self):
         '''Refresh plot windows if they are active'''
         if len(self.plot_frames) > 0:
             for plot in self.plot_frames:
                 plot.refresh_frame()
-            
+
     def change_style(self, option, set=False, verbose=True):
         '''Changes the style sheet used in the plot'''
         if self.style_sheet != option or set==True:
@@ -353,24 +353,24 @@ class Controller(tk.Frame, WorkspaceManager):
             plt.cla()
             plt.clf()
             self.refresh_plot()
-            
+
     def set_exp(self):
         '''Sets the exposure time of the camera.'''
         self.log('Changing exposure to ' + str(self.exp))
         self.cap.set(15, self.exp)
-        
+
     def adjust_exp(self, amount):
         '''Either raises or lowers the exposure of the camera by +/- 1'''
         self.exp = self.exp + amount
         self.log('Changing exposure to ' + str(self.exp))
         self.cap.set(15, self.exp)
-        
+
     def change_exp(self, option):
         '''Changes the exposure time of the camera.'''
         self.exp = float(option)
         self.log('Changing exposure to ' + str(self.exp))
         self.cap.set(15, self.exp)
-        
+
     def change_gain(self, option):
         '''Changes the gain of the camera.'''
         gain = float(option)
@@ -387,7 +387,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.set_exp()
-              
+
     def change_cam(self, option):
         '''Switches between camera_indexes and therefore different connected cameras.'''
         if self.camera_index != option and type(option) == int:
@@ -395,7 +395,7 @@ class Controller(tk.Frame, WorkspaceManager):
             self.log('Camera index change, now updating view... ' + str(self.camera_index))
             self.cap.release()
             self.init_camera()
-    
+
     def change_colourmap(self, option):
         '''Changes the colourmap used in the camera feed.'''
         if self.colourmap != option:
@@ -410,18 +410,18 @@ class Controller(tk.Frame, WorkspaceManager):
                 self.colourmap = cv2.COLORMAP_PARULA
             else:
                 self.colourmap = None
-            
+
     def show_frame(self):
         '''Shows camera view with relevant labels and annotations included.'''
         _, frame = self.cap.read() #read camera input
 
         self.frame = frame
-        
+
         if self.bg_subtract > 0:
             self.progress.next_step()
-            
+
         frame = cv2.subtract(frame, self.bg_frame)
-         
+
         # frame = np.asarray(Image.open("output.png"))
         # frame = cv2.flip(frame, 1)
         if self.roi != 1: #apply region of interest scaling
@@ -431,36 +431,36 @@ class Controller(tk.Frame, WorkspaceManager):
         else:
             analysis_frame = frame
             frame = cv2.resize(frame,None,fx=640./float(self.width), fy=360./float(self.height), interpolation = cv2.INTER_CUBIC)
-            
+
         if self.colourmap is None: #apply colourmap change
             cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
         else:
             cv2image = cv2.applyColorMap(frame, self.colourmap)
-            
+
         if self.angle != 0: #apply rotation
             cv2image = self.rotate_image(cv2image)
-        
+
         self.analysis_frame = cv2.cvtColor(self.rotate_image(analysis_frame),cv2.COLOR_BGR2GRAY) # convert to greyscale
 
         self.elapsed_time = time.time() - self.last_tick
         self.last_tick = time.time()
-        
+
         if self.active:
 
             peak_cross = self.analyse.find_peak()
             self.peak_cross = peak_cross
-            
+
             if peak_cross != (np.nan, np.nan):
                 cross_size = 10
                 screen_peak_cross = peak_cross[0]*(640./self.width), peak_cross[1]*(360./self.height)
                 cv2.line(cv2image, (int(screen_peak_cross[0])-cross_size, int(screen_peak_cross[1])), (int(screen_peak_cross[0])+cross_size, int(screen_peak_cross[1])), 255, thickness=1)
                 cv2.line(cv2image, (int(screen_peak_cross[0]), int(screen_peak_cross[1])+cross_size), (int(screen_peak_cross[0]), int(screen_peak_cross[1])-cross_size), 255, thickness=1)
-                    
+
             centroid = self.analyse.get_centroid()
-            if centroid != (np.nan, np.nan):               
+            if centroid != (np.nan, np.nan):
                 if centroid[0] < self.width or centroid[1] < self.height: #ensure centroid lies within correct regions
                     self.centroid = centroid
-                    
+
                     cross_size = 20
                     screen_centroid = centroid[0]*(640./self.width), centroid[1]*(360./self.height)
                     cv2.line(cv2image, (int(screen_centroid[0])-cross_size, int(screen_centroid[1])), (int(screen_centroid[0])+cross_size, int(screen_centroid[1])), 255, thickness=1)
@@ -470,7 +470,7 @@ class Controller(tk.Frame, WorkspaceManager):
                     self.centroid = None
             else:
                 self.centroid = None
-        
+
             ellipses = self.analyse.find_ellipses() #fit ellipse and print data to screen
             if ellipses != None:
                 (x,y),(ma,MA),angle = ellipses
@@ -493,25 +493,25 @@ class Controller(tk.Frame, WorkspaceManager):
             self.MA_hist = np.append(self.MA_hist, self.MA)
             self.ellipticity_hist = np.append(self.ellipticity_hist, self.ellipticity)
             self.eccentricity_hist = np.append(self.eccentricity_hist, self.eccentricity)
-            
+
             if self.info_frame != None:
                 self.pass_fail_testing()
-            
+
             self.beam_width = self.analyse.get_e2_width(self.peak_cross)
             if self.beam_width is not None:
                 self.beam_diameter = np.mean(self.beam_width)
             else:
                 self.beam_diameter = None
-                
+
         status_string = "Profiler: " + str(self.TrueFalse(self.active)) + " | " + "Centroid: " + str(self.TrueFalse(self.centroid)) + " | Peak Cross: " + str(self.TrueFalse(self.peak_cross)) + " | Ellipse: " + str(self.TrueFalse(self.ellipse_angle)) + '                  ' + 'Zoom Factor: ' + str(self.roi) + ' | Exposure: ' + str(self.exp) + ' | Rotation: ' + str(self.angle) + ' | FPS: ' + str(round(1./self.elapsed_time))
         self.status.set(status_string)
-                
+
         self.imgtk = ImageTk.PhotoImage(image=Image.fromarray(cv2image))
 
         if self.webcam_frame is not None:
             self.webcam_frame.show_frame()
         self.lmain.after(10, self.show_frame)
-              
+
         self.img = frame
         curr_time = time.time()
         if curr_time - self.plot_time > self.plot_tick and self.active: #if tickrate period elapsed, update the plot with new data
@@ -521,17 +521,17 @@ class Controller(tk.Frame, WorkspaceManager):
                 self.info_frame.refresh_frame()
                 self.tick_counter = 0
             self.plot_time = time.time() #update plot time info
-            
+
     def set_angle(self, option):
         '''Sets the rotation angle.'''
         self.log('Changed angle to ' + str(option))
         self.angle = float(option)
-        
+
     def set_roi(self, option):
         '''Sets the region of interest size'''
         self.log('Changed roi to ' + str(option))
         self.roi = int(option)
-        
+
     def profiler_active(self, option=False):
         '''Turns profiling mode on or off'''
         if option: #toggle box state if using key binding to toggle. if using box then sets correct box state, ticked or not ticked
@@ -544,7 +544,7 @@ class Controller(tk.Frame, WorkspaceManager):
                 box = True
             else:
                 box = False
-                
+
         if box and not self.active:
             self.log('Profiler ACTIVE')
             self.pause_delay += time.time()-self.last_pause
@@ -555,13 +555,13 @@ class Controller(tk.Frame, WorkspaceManager):
             self.last_pause = time.time()
             self.active = False
             self.pb.deselect()
-            
+
         self.toggle_navbar()
-        
+
     def rotate_image(self, image):
         '''Rotates the given array by the rotation angle, returning as an array.'''
         image_height, image_width = image.shape[0:2]
-        
+
         image_rotated = output.rotate_image(image, self.angle)
         image_rotated_cropped = output.crop_around_centre(
             image_rotated,
@@ -572,27 +572,27 @@ class Controller(tk.Frame, WorkspaceManager):
             )
         )
         return image_rotated_cropped
-  
+
     def close_window(self):
         '''Close GUI routine. Stops threaded sound process to avoid problems in shutdown.'''
         self.stream.streamer.stop_stream()
         self.stream.streamer.close()
         on_closing(self)
-        
+
     def info_window(self, title, info, modal=False):
         t = tk.Toplevel(self)
         t.wm_title(title)
         l = tk.Label(t, text=info)
         l.pack(side="top", fill="both", expand=True, padx=100, pady=100)
         if modal:
-            l.focus_set()                                                        
-            l.grab_set()  
-       
+            l.focus_set()
+            l.grab_set()
+
     def save_screenshot(self):
         filename = 'outputpicture_%s.png' % (str(time.strftime("%d-%m_%H%M")))
         cv2.imwrite(filename, self.img)
         self.log('Written ' + filename + ' to disk.')
-        
+
     def save_video(self, wait):
         filename = 'outputvideo_%s.avi' % (str(time.strftime("%d-%m_%H%M")))
         self.log('Writing video to disk, of length ' + str(wait) + ' seconds.')
@@ -602,20 +602,20 @@ class Controller(tk.Frame, WorkspaceManager):
            f,img = self.cap.read()
            video.write(img)
         self.log('Video capture completed successfully. Written ' + filename + ' to disk.')
-        video.release()  
-            
+        video.release()
+
     def save_csv(self):
         '''Saves .csv file of recorded data in columns.'''
         f = tkFileDialog.asksaveasfile(mode='w', initialfile='output.csv', defaultextension=".csv")
         if f is None: # asksaveasfile return `None` if dialog closed with "cancel".
             return
-            
+
         output = np.column_stack((self.running_time.flatten(),(self.centroid_hist_x*self.pixel_scale).flatten(),(self.centroid_hist_y*self.pixel_scale).flatten(),
         (self.peak_hist_x*self.pixel_scale).flatten(),(self.peak_hist_y*self.pixel_scale).flatten(), self.ellipse_hist_angle.flatten(),
         (self.ma_hist*self.pixel_scale).flatten(), (self.MA_hist*self.pixel_scale).flatten(), self.ellipticity_hist.flatten(), self.eccentricity_hist.flatten()))
         np.savetxt('output.csv',output,delimiter=',',header='BiLBO Data Export. Units same as given in calc results. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y, ellipse angle, minor axis, major axis, ellipticity, eccentricity')
         self.log('Successfully exported data.')
-    
+
     def calc_results(self):
         '''Opens calculation results window'''
         if self.info_frame is None:
@@ -624,7 +624,7 @@ class Controller(tk.Frame, WorkspaceManager):
             # self.log('Calculation results already loaded')
             self.info_frame.window.lift()
             self.info_frame.window.deiconify()
-            
+
     def view_plot(self, graph):
         '''Opens plot view'''
         if graph == '2d surface':
@@ -639,7 +639,7 @@ class Controller(tk.Frame, WorkspaceManager):
             else:
                 self.plot_frames.append(self.view('plot', graphtype=graph))
             print("end: " + graph)
-            
+
     def change_config(self):
         '''Opens configuration window'''
         if self.config_frame != None:
@@ -674,7 +674,7 @@ class Controller(tk.Frame, WorkspaceManager):
                     self.power = power
             if angle is not None:
                 self.angle = angle
-                
+
     def view_log(self):
         '''Opens System Log'''
         if self.systemlog_frame is None:
@@ -683,7 +683,7 @@ class Controller(tk.Frame, WorkspaceManager):
             # self.log('System logs already loaded')
             self.systemlog_frame.window.lift()
             self.systemlog_frame.deiconify()
-        
+
     def view_webcam(self):
         '''Opens Webcam Feed'''
         if self.webcam_frame is None:
@@ -692,7 +692,7 @@ class Controller(tk.Frame, WorkspaceManager):
             # self.log('Webcam window already loaded')
             self.webcam_frame.window.lift()
             self.webcam_frame.deiconify()
-            
+
     def change_toolbar(self):
         '''Opens Toolbar Settings'''
         if self.toolbarconfig_frame != None:
@@ -711,7 +711,7 @@ class Controller(tk.Frame, WorkspaceManager):
             self.log('Updating toolbar configuration')
         for button in newbuttons:
             self.update_toolbar(button) #now add buttons that have been requested
-                
+
     def update_toolbar(self, button):
         '''Adds buttons to the toolbar that have been chosen'''
         if button.lower() in self.toolbaractions.keys():
@@ -741,7 +741,7 @@ class Controller(tk.Frame, WorkspaceManager):
         else:
             self.toolbarbuttons.append([tk.Button(self.toolbar, text=button), button])
         self.toolbarbuttons[-1][0].pack(side=tk.LEFT, padx=2, pady=2)
-        
+
     def pass_fail_testing(self):
         '''Sets off alarm if pass/fail test criteria are not met.'''
         for index in np.where(np.array(self.raw_passfail) == 'True')[0]:
@@ -785,7 +785,7 @@ class Controller(tk.Frame, WorkspaceManager):
                             self.alert("Pass/Fail Test", "Power Density has failed to meet criteria!")
                             self.raw_passfail[index] = 'False' #reset value
                             self.info_frame.refresh_frame()
-                               
+
         for index in np.where(np.array(self.ellipse_passfail) == 'True')[0]:
             x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.info_frame.ellipse_xbounds[index]]
             if index == 0:
@@ -817,7 +817,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.info_window(title, text)
         self.log(text)
         # tkMessageBox.showerror(title, text)
-        
+
     def log(self, text):
         '''Log message to system log and prints'''
         print(text)
@@ -825,7 +825,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.logs.append(timestamp + ' ' + text)
         if self.systemlog_frame != None:
             self.systemlog_frame.callback() #refresh log window with new info
-        
+
     def toggle_graph(self, option):
         '''Graph customisation functionality'''
         if self.graphs[option]:
@@ -835,7 +835,7 @@ class Controller(tk.Frame, WorkspaceManager):
         else:
             'Error. Something went wrong.'
         self.refresh_plot()
-        
+
     def read_config(self):
         '''Reads config file on startup and sets chosen configuration'''
         config = ConfigParser.ConfigParser()
@@ -847,7 +847,7 @@ class Controller(tk.Frame, WorkspaceManager):
                 self.exp = float(config.get('WebcamSpecifications', 'base_exp')) #then set exp
             if config.has_option('WebcamSpecifications', 'resolution'):
                 self.width, self.height = [float(i) for i in config.get('WebcamSpecifications', 'resolution').replace(', ',',').split(',')]
-                
+
             if config.has_option('LaserSpecifications', 'power'):
                 power = (config.get('LaserSpecifications', 'power'))
                 if power == '-' or not power.isdigit():
@@ -856,10 +856,10 @@ class Controller(tk.Frame, WorkspaceManager):
                     self.power = float(power)
             if config.has_option('LaserSpecifications', 'angle'):
                 self.angle = float(config.get('LaserSpecifications', 'angle'))
-                
+
             if config.has_option('Toolbar', 'buttons'):
                 self.toolbaroptions = config.get('Toolbar', 'buttons').replace(', ',',').split(',')
-                
+
             if config.has_option('Miscellaneous', 'plot_tick'):
                 self.plot_tick = float(config.get('Miscellaneous', 'plot_tick'))
             if config.has_option('Miscellaneous', 'colourmap'):
@@ -884,7 +884,7 @@ class Controller(tk.Frame, WorkspaceManager):
                         self.workspace.append((float(w), float(h), float(x), float(y), windowtype))
                     else:
                         self.log('Could not find workspace details.')
-                        
+
     def toggle_navbar(self):
         '''Enable/Disable the top navbar depending on profiler state.'''
         menus = ['File', 'Control', 'Windows', 'Image', 'Help']
@@ -894,12 +894,12 @@ class Controller(tk.Frame, WorkspaceManager):
         else:
             for menu in menus:
                 self.menubar.entryconfig(menu, state="normal")
-                
+
     def open_link(self, link):
         '''Access hyperlink'''
         import webbrowser
         webbrowser.open_new(link)
-             
+
     def TrueFalse(self, x):
         if x != (np.nan, np.nan) and x is not None and x and str(x) != 'nan' and x is not False:
             if self.active:
@@ -908,7 +908,7 @@ class Controller(tk.Frame, WorkspaceManager):
                 return 'INACTIVE'
         else:
             return 'INACTIVE'
-            
+
     def surface_plot(self):
         from mayavi import mlab
         size = 200
@@ -916,7 +916,7 @@ class Controller(tk.Frame, WorkspaceManager):
             x,y = self.parent.peak_cross
         else:
             x,y = self.parent.width/2, self.parent.height/2
-            
+
         img = self.parent.analysis_frame[int(y-size/2):int(y+size/2), int(x-size/2):int(x+size/2)]
 
         height, width = img.shape
@@ -942,12 +942,12 @@ class Controller(tk.Frame, WorkspaceManager):
                 a,b = 300,212
                 size = 200
                 img = img[b-size/2:b+size/2, a-size/2:a+size/2]
-                
+
                 ms.set(x=x, y=y, z=img)
                 yield
-                
+
         anim()
         mlab.show()
-    
+
 app = Application()
 app.load()
