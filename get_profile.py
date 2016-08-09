@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: latin-1 -*-
-
 from utils.results import WorkspaceManager
 from utils import analysis, output, interface
 
@@ -125,6 +124,7 @@ class Application:
         splash_screen.close()
         print('Showing main window and starting application loop')
         root.deiconify()
+        root.iconbitmap('images/mainsym.ico')
         root.mainloop()
 
 class Controller(tk.Frame, WorkspaceManager):

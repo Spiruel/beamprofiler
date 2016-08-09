@@ -18,6 +18,9 @@ Because of this, it is important that this analysis software is made freely avai
 
 ###Installation
 
+####Executables
+#####[Download for Windows™ platform .exe available here](https://github.com/Spiruel/beamprofiler/blob/master/dist.zip)
+
 ####Quick Start
 These instructions will get you a copy of the project up and running on your local machine.
 
@@ -47,8 +50,6 @@ You will now need to install the OpenCV library separately. [Source download her
 ```
 conda install opencv
 ```
-####Executables
-Download for Windows™ platforms available here:
 
 ###Modifying the webcam
 
@@ -138,7 +139,7 @@ All the results and plots are directly accessed using the window menu. All of th
 ##FAQ
 
 ###When I activate the profiler the programme is slow to respond, with a low refresh rate. What steps should I take to fix this?
-BiLBO is designed to work on a range of computer, but some will perform better than others. If you find that your computer is not powerful enough to run
+BiLBO is designed to work on a range of computers, but some will perform better than others. If you find that your computer is not powerful enough to run
 the application well, try these steps:
   1. Reduce the resolution of the webcam view in the config.ini file. Note: You will need to adjust the pixel scale parameter in accordance with this.
 Measurement accuracy will be affected by this.  
