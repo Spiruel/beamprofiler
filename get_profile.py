@@ -176,7 +176,7 @@ class Controller(tk.Frame, WorkspaceManager):
                                }
         self.toolbaroptions = ['x Cross Profile', 'y Cross Profile'] #initial choices for active buttons on toolbar
         self.camera_index = 0
-        self.beam_width, self.beam_diameter = None, None
+        self.beam_width, self.beam_width_e2, self.beam_diameter = None, None, None
         self.centroid = None
         self.peak_cross = None
         self.power = np.nan
@@ -195,7 +195,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.centroid_hist_x, self.centroid_hist_y = np.array([]), np.array([])
         self.peak_hist_x, self.peak_hist_y = np.array([]), np.array([])
         self.ellipse_hist_angle, self.ma_hist, self.MA_hist, self.ellipticity_hist, self.eccentricity_hist = np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
-        self.width_hist = np.array([])
+        self.width_hist, self.width_e2_hist = np.array([]), np.array([])
         self.MA, self.ma, self.ellipse_x, self.ellipse_y, self.ellipse_angle = np.nan, np.nan, np.nan, np.nan, None
         self.ellipticity, self.eccentricity = None, None
         self.tick_counter = 0
@@ -211,7 +211,7 @@ class Controller(tk.Frame, WorkspaceManager):
         self.analyse = analysis.Analyse(self) #creates instance for analysis routines
         self.analyse.start()
 
-        self.raw_passfail = ['False'] * 6
+        self.raw_passfail = ['False'] * 7
         self.ellipse_passfail = ['False'] * 4
 
         self.bg_frame = 0
@@ -432,6 +432,7 @@ class Controller(tk.Frame, WorkspaceManager):
             analysis_frame = frame
             frame = cv2.resize(frame,None,fx=640./float(self.width), fy=360./float(self.height), interpolation = cv2.INTER_CUBIC)
 
+        self.analysis_frame_colour = frame
         if self.colourmap is None: #apply colourmap change
             cv2image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
         else:
@@ -489,6 +490,7 @@ class Controller(tk.Frame, WorkspaceManager):
             self.ellipse_hist_angle = np.append(self.ellipse_hist_angle, self.ellipse_angle)
             self.running_time = np.append(self.running_time, time.time()-self.pause_delay) #making sure to account for time that pause has been active
             self.width_hist = np.append(self.width_hist, self.beam_width)
+            self.width_e2_hist = np.append(self.width_e2_hist, self.beam_width_e2)
             self.ma_hist = np.append(self.ma_hist, self.ma)
             self.MA_hist = np.append(self.MA_hist, self.MA)
             self.ellipticity_hist = np.append(self.ellipticity_hist, self.ellipticity)
@@ -497,7 +499,8 @@ class Controller(tk.Frame, WorkspaceManager):
             if self.info_frame != None:
                 self.pass_fail_testing()
 
-            self.beam_width = self.analyse.get_e2_width(self.peak_cross)
+            self.beam_width = self.analyse.get_beam_width()
+            self.beam_width_e2 = self.analyse.get_e2_width(self.peak_cross)
             if self.beam_width is not None:
                 self.beam_diameter = np.mean(self.beam_width)
             else:
@@ -611,9 +614,9 @@ class Controller(tk.Frame, WorkspaceManager):
             return
 
         output = np.column_stack((self.running_time.flatten(),(self.centroid_hist_x*self.pixel_scale).flatten(),(self.centroid_hist_y*self.pixel_scale).flatten(),
-        (self.peak_hist_x*self.pixel_scale).flatten(),(self.peak_hist_y*self.pixel_scale).flatten(), self.ellipse_hist_angle.flatten(),
-        (self.ma_hist*self.pixel_scale).flatten(), (self.MA_hist*self.pixel_scale).flatten(), self.ellipticity_hist.flatten(), self.eccentricity_hist.flatten()))
-        np.savetxt('output.csv',output,delimiter=',',header='BiLBO Data Export. Units same as given in calc results. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y, ellipse angle, minor axis, major axis, ellipticity, eccentricity')
+        (self.peak_hist_x*self.pixel_scale).flatten(),(self.peak_hist_y*self.pixel_scale).flatten(), (self.width_e2_hist*self.pixel_scale).flatten(), (self.width_hist*self.pixel_scale).flatten(), 
+        self.ellipse_hist_angle.flatten(), (self.ma_hist*self.pixel_scale).flatten(), (self.MA_hist*self.pixel_scale).flatten(), self.ellipticity_hist.flatten(), self.eccentricity_hist.flatten()))
+        np.savetxt('output.csv',output,delimiter=',',header='BiLBO Data Export. Units same as given in calc results. \n running time, centroid_hist_x, centroid_hist_y, peak_hist_x, peak_hist_y, width_hist, width_e2_hist, ellipse angle, minor axis, major axis, ellipticity, eccentricity')
         self.log('Successfully exported data.')
 
     def calc_results(self):
@@ -747,9 +750,9 @@ class Controller(tk.Frame, WorkspaceManager):
         for index in np.where(np.array(self.raw_passfail) == 'True')[0]:
             x_lower, x_upper = [float(i) if i.replace('.','').isdigit() else i for i in self.info_frame.raw_xbounds[index]]
             if index == 0:
-                if self.beam_width is not None:
+                if self.beam_width_e2 is not None:
                     y_lower, y_upper = [float(i[5:]) for i in self.info_frame.raw_ybounds[index]]
-                    if self.beam_width[0]*self.pixel_scale <= float(x_lower[5:]) or self.beam_width[0]*self.pixel_scale >= float(x_upper[5:]) or self.beam_width[1]*self.pixel_scale <= y_lower or self.beam_width[1]*self.pixel_scale >= y_upper:
+                    if self.beam_width_e2[0]*self.pixel_scale <= float(x_lower[5:]) or self.beam_width_e2[0]*self.pixel_scale >= float(x_upper[5:]) or self.beam_width_e2[1]*self.pixel_scale <= y_lower or self.beam_width_e2[1]*self.pixel_scale >= y_upper:
                         self.alert("Pass/Fail Test", "Beam Width has failed to meet criteria!")
                         self.raw_passfail[index] = 'False' #reset value
                         self.info_frame.refresh_frame()

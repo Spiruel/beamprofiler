@@ -7,7 +7,7 @@ from matplotlib.patches import Circle
 
 import scipy.optimize as opt
 from scipy import ndimage
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.filters import gaussian_filter, convolve
 import scipy.integrate as integrate
 
 import copy
@@ -264,31 +264,74 @@ class Analyse(threading.Thread):
 
         return pts
         
-    def get_beam_width(self, peak_cross):
-        '''This method is too slow and doesn't work. But it's better than 1/e2 width to use.'''
-        image = self.master.analysis_frame
-        height, width = image.shape[0:2]
-        
-        if centroid is None: 
-            return None
+    def get_beam_width(self):
+        infilm = self.master.analysis_frame_colour
+        a,b,c = infilm.shape
+        X = np.zeros((1,c - 1))
+        Y = X.copy()
+        dx = X.copy()
+        dy = X.copy()
+        angle = X.copy()
+        offset = X.copy()
+        imagestd = X.copy()
+        pixels = X.copy()
+        offset2 = X.copy()
+        total = X.copy()
+        for frame in np.arange(0,c - 1).reshape(-1):
+            profil = infilm[:,:,frame]
             
-        cent_x, cent_y = centroid
-        if cent_x >= width:
-            return None
-        if cent_y >= height:
-            return None
+            h = np.ones((7,7)) / (7 * 7)
+            profil2 = convolve(profil,h,mode='nearest')
+            
+            mask = np.zeros((a,b))
+            da = int(round(a / 20))
+            db = int(round(b / 20))
+            mask[1:da,1:db] = 1
+            mask[a - da:a - 1,1:db] = 1
+            mask[1:da,b - db:b - 1] = 1
+            mask[a - da:a - 1,b - db:b - 1] = 1
+            offset[0][frame] = (profil*mask).sum() / (4 * (da * db))
+            
+            varde = np.array([])
+            temp = 1
+            for y in np.arange(0,a-1).reshape(-1):
+                for x in np.arange(0,b-1).reshape(-1):
+                    if mask[y,x]  ==  1:
+                        varde = np.append(varde, profil[y,x])
+                        temp = temp + 1
+            imagestd[0][frame] = varde.std(axis=0)
+            
+            mask2 = (profil2 < (offset[0][frame] + 3 * imagestd[0][frame] / 7))
+            pixels[0][frame] = (mask2).sum()
+            
+            if pixels[0][frame] > 10:
+                offset2[0][frame] = (profil*mask2).sum() / pixels[0][frame]
+            else:
+                offset2[0][frame] = offset[0][frame]
+                
+            offset3 = 30 / 256
+            
+            profil = profil - offset3
+            total[0][frame] = (profil).sum()
+            
+            y = (np.arange(1,a+1)).reshape(1,a).T * np.ones((1,b))
+            x = (b - (np.arange(1,b+1)).reshape(1,b).T * np.ones((1,a))).T
+            X[0][frame] = (x*profil).sum() / total[0][frame]
+            Y[0][frame] = (y*profil).sum() / total[0][frame]
+            
+            X2 = (((x - X[0][frame]) ** 2)*(profil)).sum() / total[0][frame]
+            Y2 = (((y - Y[0][frame]) ** 2)*(profil)).sum() / total[0][frame]
+            XY = (((x - X[0][frame])*((y - Y[0][frame])))*(profil)).sum() / total[0][frame]
+            g = np.sign(X2 - Y2)
+            dx[0][frame] = 2 * np.sqrt(2) * np.sqrt((X2 + Y2) + g * np.sqrt((X2 - Y2) ** 2 + 4 * (XY) ** 2))
+            dy[0][frame] = 2 * np.sqrt(2) * np.sqrt((X2 + Y2) - g * np.sqrt((X2 - Y2) ** 2 + 4 * (XY) ** 2))
+            
+            if X2  ==  Y2:
+                angle[0][frame] = np.sign(XY) * pi / 4
+            else:
+                angle[0][frame] = 0.5 * np.arctan(2 * XY / (X2 - Y2))
 
-        intensity_func = lambda x,y: image[y,x]
-        denom = integrate.dblquad(intensity_func, 0, height, lambda x: 0, lambda x: width)
-        x_f = lambda x,y: (x-centroid[0])**2 * intensity_func(x,y)
-        y_f = lambda x,y: (y-centroid[1])**2 * intensity_func(x,y)
-        x_num = integrate.nquad(x_f, [[0, width],[0, height]])
-        y_num = integrate.nquad(y_f, [[0, width],[0, height]])
-        sig_x = np.sqrt(x_num[0]/denom[0])
-        sig_y = np.sqrt(y_num[0]/denom[0])
-
-        return (5,5)
-        # return (4*sig_x, 4*sig_y)
+        return dy[0]
         
     def get_e2_width(self, peak_cross):
         image = self.master.analysis_frame

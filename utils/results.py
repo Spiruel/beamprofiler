@@ -569,21 +569,23 @@ class InfoView(NewWindow):
 
         if self.parent.beam_width is None:
             self.parent.beam_width = (np.nan, np.nan)
+        if self.parent.beam_width_e2 is None:
+            self.parent.beam_width_e2 = (np.nan, np.nan)
         if self.parent.peak_cross is None: 
             self.parent.peak_cross = (np.nan, np.nan)
         if self.parent.centroid is None:
             self.parent.centroid = (np.nan, np.nan)
             
         self.pixel_scale = self.parent.pixel_scale #get pixel scale conversion
-        self.raw_rows = ["Beam Width (1/e²)", "Beam Diameter (1/e²)", "Peak Pixel Value", "Peak Position", "Centroid Position", "Power Density"]
-        self.raw_units = ["µm","µm"," ","µm","µm","W/µm²"]
+        self.raw_rows = ["Beam Width (4σ)", "Beam Width (1/e²)", "Beam Diameter (4σ)", "Peak Pixel Value", "Peak Position", "Centroid Position", "Power Density"]
+        self.raw_units = ["µm","µm","µm"," ","µm","µm","W/µm²"]
         square = lambda x: x**2 if x is not None else np.nan
-        self.raw_values = ['(' + self.info_format(self.parent.beam_width[0], convert=True) + ', ' + self.info_format(self.parent.beam_width[1], convert=True) + ')', self.info_format(self.parent.beam_diameter, convert=True), self.info_format(np.max(self.parent.analysis_frame)), '(' + self.info_format(self.parent.peak_cross[0], convert=True) + ', ' + self.info_format(self.parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(self.parent.centroid[0], convert=True) + ', ' + self.info_format(self.parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(self.parent.beam_diameter))*self.parent.power)]
+        self.raw_values = ['(' + self.info_format(self.parent.beam_width[0], convert=True) + ', ' + self.info_format(self.parent.beam_width[1], convert=True) + ')', '(' + self.info_format(self.parent.beam_width_e2[0], convert=True) + ', ' + self.info_format(self.parent.beam_width_e2[1], convert=True) + ')', self.info_format(self.parent.beam_diameter, convert=True), self.info_format(np.max(self.parent.analysis_frame)), '(' + self.info_format(self.parent.peak_cross[0], convert=True) + ', ' + self.info_format(self.parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(self.parent.centroid[0], convert=True) + ', ' + self.info_format(self.parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(self.parent.beam_diameter))*self.parent.power)]
         self.ellipse_rows = ["Ellipse axes", "Ellipticity", "Eccentricity", "Orientation"]
         self.ellipse_units = ["µm", " ", " ", "deg"]
         self.ellipse_values = ['(' + self.info_format(self.parent.MA, convert=True) + ', ' + self.info_format(self.parent.ma, convert=True) + ')', self.info_format(self.parent.ellipticity), self.info_format(self.parent.eccentricity), self.info_format(self.parent.ellipse_angle)]
-                  
         self.raw_xbounds = [('x ≥ 0.00', 'x ≤ 0.00'), #for pass/fail testing
+                        ('x ≥ 0.00', 'x ≤ 0.00'),
                         ('0.00', '0.00'),
                         ('0.00', '255.00'),
                         ('x ≥ 0.00', 'x ≤ ' + '{0:.2f}'.format(self.parent.width*self.parent.pixel_scale)),
@@ -596,6 +598,7 @@ class InfoView(NewWindow):
                         ('0.00', '360.00')
                         ]
         self.raw_ybounds = [('y ≥ 0.00', 'y ≤ 0.00'),
+                        ('y ≥ 0.00', 'y ≤ 0.00'),
                         (' ', ' '),
                         (' ', ' '),
                         ('y ≥ 0.00', 'y ≤ ' + '{0:.2f}'.format(self.parent.height*self.parent.pixel_scale)),
@@ -630,15 +633,15 @@ class InfoView(NewWindow):
     def refresh_frame(self):
         self.curr_item = self.tree.focus() #problem because widget doesnt exist anymore
         
-        if self.parent.beam_width is None:
-            self.parent.beam_width = (np.nan, np.nan)
+        if self.parent.beam_width_e2 is None:
+            self.parent.beam_width_e2 = (np.nan, np.nan)
         if self.parent.peak_cross is None: 
             self.parent.peak_cross = (np.nan, np.nan)
         if self.parent.centroid is None:
             self.parent.centroid = (np.nan, np.nan)
             
         square = lambda x: x**2 if x is not None else np.nan #3e-15 power dens before sat
-        self.raw_values = ['(' + self.info_format(self.parent.beam_width[0], convert=True) + ', ' + self.info_format(self.parent.beam_width[1], convert=True) + ')', self.info_format(self.parent.beam_diameter, convert=True), self.info_format(np.max(self.parent.analysis_frame)), '(' + self.info_format(self.parent.peak_cross[0], convert=True) + ', ' + self.info_format(self.parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(self.parent.centroid[0], convert=True) + ', ' + self.info_format(self.parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(self.parent.beam_diameter))*self.parent.power)]
+        self.raw_values = ['(' + self.info_format(self.parent.beam_width[0], convert=True) + ', ' + self.info_format(self.parent.beam_width[1], convert=True) + ')', '(' + self.info_format(self.parent.beam_width_e2[0], convert=True) + ', ' + self.info_format(self.parent.beam_width_e2[1], convert=True) + ')', self.info_format(self.parent.beam_diameter, convert=True), self.info_format(np.max(self.parent.analysis_frame)), '(' + self.info_format(self.parent.peak_cross[0], convert=True) + ', ' + self.info_format(self.parent.peak_cross[1], convert=True) + ')', '(' + self.info_format(self.parent.centroid[0], convert=True) + ', ' + self.info_format(self.parent.centroid[1], convert=True) + ')', "{:.2E}".format((255000/square(self.parent.beam_diameter))*self.parent.power)]
         self.ellipse_values = ['(' + self.info_format(self.parent.MA, convert=True) + ', ' + self.info_format(self.parent.ma, convert=True) + ')', self.info_format(self.parent.ellipticity), self.info_format(self.parent.eccentricity), self.info_format(self.parent.ellipse_angle)]
 
         self.tree.delete(*self.tree.get_children())
