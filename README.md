@@ -19,7 +19,7 @@ Because of this, it is important that this analysis software is made freely avai
 ###Installation
 
 ####Executables
-#####[Download for Windows™ platform .exe available here](https://github.com/Spiruel/beamprofiler/blob/master/dist.zip)
+#####[Download for Windows™ platform .exe available here](https://www.mediafire.com/?7wiw2cwxl5kpwiv)
 
 ####Quick Start
 These instructions will get you a copy of the project up and running on your local machine.
@@ -43,7 +43,7 @@ in order to install the required dependencies (except OpenCV) for BiLBO to work.
 
 ####OpenCV Installation
 You will now need to install the OpenCV library separately. [Source download here](http://sourceforge.net/projects/opencvlibrary/files/opencv-win/). 
-[Alternatively, Unofficial Windows Binaries for pip installation of OpenCV .whl file here.](http://www.lfd.uci.edu/~gohlke/pythonlibs/).
+[Alternatively, Unofficial Windows Binaries for pip installation of OpenCV .whl file here](http://www.lfd.uci.edu/~gohlke/pythonlibs/).
 
 **Note**: If you're on the Anaconda distribution of Python you can try to easily install OpenCV using,
 
