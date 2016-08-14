@@ -159,7 +159,7 @@ Please create an issue in the repository issues page and it will get investigate
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
+This project is licensed under the GNU General Public License - see the [LICENSE](LICENSE) file for details
 
 ## Acknowledgments
 
