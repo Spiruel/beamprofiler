@@ -16,12 +16,12 @@ Because of this, it is important that this analysis software is made freely avai
 
 ## Getting Started
 
-###Installation
+### Installation
 
-####Executables
-#####[Download for Windows™ platform .exe available here](https://www.mediafire.com/?7wiw2cwxl5kpwiv)
+#### Executables
+##### [Download for Windows™ platform .exe available here](https://www.mediafire.com/?7wiw2cwxl5kpwiv)
 
-####Quick Start
+#### Quick Start
 These instructions will get you a copy of the project up and running on your local machine.
 
 First, you can to try to run this command in your terminal,
@@ -32,7 +32,7 @@ python -c "import urllib2;exec(urllib2.urlopen('https://raw.githubusercontent.co
 
 to install everything (except OpenCV) at once and download necessary files into your working directory.
 
-####Install from source distribution
+#### Install from source distribution
 Alternatively you can download a copy of this repository, and run:
 
 ```
@@ -41,7 +41,7 @@ pip install -r requirements.txt
 
 in order to install the required dependencies (except OpenCV) for BiLBO to work. 
 
-####OpenCV Installation
+#### OpenCV Installation
 You will now need to install the OpenCV library separately. [Source download here](http://sourceforge.net/projects/opencvlibrary/files/opencv-win/). 
 [Alternatively, Unofficial Windows Binaries for pip installation of OpenCV .whl file here](http://www.lfd.uci.edu/~gohlke/pythonlibs/).
 
@@ -51,7 +51,7 @@ You will now need to install the OpenCV library separately. [Source download her
 conda install opencv
 ```
 
-###Modifying the webcam
+### Modifying the webcam
 
 BiLBO is compatible with any camera that works with the OpenCV library. This means almost all webcams and several other high-quality CCDs.
 
@@ -77,7 +77,7 @@ There are a considerations that should be taken into account before using the ap
   * Monochrome chips are recommended - the Bayer colour filter
     pattern will skew results.
     
-###How to begin
+### How to begin
 (Click to enlarge image.)
 ![](https://cloud.githubusercontent.com/assets/3259632/17398152/3f943c52-5a33-11e6-95d6-2247db34b619.png)
 
@@ -85,11 +85,11 @@ When the programme loads, the main control bar will load alongside any configure
 with the controls before activating the profiler. The main control bar contains almost all the controls, with the other windows predominately for display
 purposes.
 
-####Main navigation bar
+#### Main navigation bar
 Using the five navigation menus located at the top of the control bar, you can export data, calibrate background subtraction, change the camera view and more.
 For a full list of features please look at [features](#features).
 
-####Main toolbar
+#### Main toolbar
 (Click to enlarge image.)
 ![Main toolbar information](https://cloud.githubusercontent.com/assets/3259632/17363802/8b730d5c-5974-11e6-861a-0fceac70c36d.png)
 
@@ -136,9 +136,9 @@ All the results and plots are directly accessed using the window menu. All of th
   * Active ellipse drawing on webcam real-time view, with a large cross marking any active centroid and the smaller cross marking any active peak of the identified laser beam.
   * Fully configurable, with custom toolbar configuration and window layout workspaces all available to be saved to a file and loaded on request
 
-##FAQ
+## FAQ
 
-###When I activate the profiler the programme is slow to respond, with a low refresh rate. What steps should I take to fix this?
+### When I activate the profiler the programme is slow to respond, with a low refresh rate. What steps should I take to fix this?
 BiLBO is designed to work on a range of computers, but some will perform better than others. If you find that your computer is not powerful enough to run
 the application well, try these steps:
   1. Reduce the resolution of the webcam view in the config.ini file. Note: You will need to adjust the pixel scale parameter in accordance with this.
@@ -147,10 +147,10 @@ Measurement accuracy will be affected by this.
   3. Reduce the plot refresh rate in the config to reduce the rate of canvasses being actively refreshed.
   4. Close the webcam view window if it is active.
 
-###I want to add new features to BiLBO and offer improvements.
+### I want to add new features to BiLBO and offer improvements.
 Feel free to offer pull requests etc to this repository!
 
-###I have an issue which I am struggling to diagnose. It is probably a bug.
+### I have an issue which I am struggling to diagnose. It is probably a bug.
 Please create an issue in the repository issues page and it will get investigated!
 
 ## Authors
